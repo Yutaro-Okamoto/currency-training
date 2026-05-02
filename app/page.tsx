@@ -3,8 +3,11 @@ import { useState } from "react";
 
 const RATE = 150;
 
+type Lang = "ja" | "en";
+
 type Question = {
-  text: string;
+  textJa: string;
+  textEn: string;
   correct: number;
   options: number[];
 };
@@ -13,38 +16,70 @@ function randomFrom<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function formatYen(num: number) {
-  const oku = Math.round(num / 100_000_000);
-  return `${oku}億円`;
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5);
 }
 
-function generateQuestion(): Question {
-  const million = randomFrom([10, 20, 50, 100, 300]);
-  const usd = million * 1_000_000;
-  const correct = usd * RATE;
-
-  const correctOku = Math.round(correct / 100_000_000);
-
-  // ダミー選択肢生成
+function generateOptions(correctOku: number) {
   const options = new Set<number>();
   options.add(correctOku);
 
+  // 正解から約15%ズレ
+  const near = Math.max(1, Math.round(correctOku * randomFrom([0.85, 1.15])));
+  options.add(near);
+
+  // 桁違いの大きなズレ
   while (options.size < 4) {
-    const fake = correctOku + randomFrom([-20, -10, -5, 5, 10, 20]);
-    if (fake > 0) options.add(fake);
+    const bigMiss = Math.max(
+      1,
+      Math.round(correctOku * randomFrom([0.01, 0.1, 10, 100]))
+    );
+    options.add(bigMiss);
   }
 
+  return shuffle(Array.from(options));
+}
+
+function generateQuestion(): Question {
+  const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
+  const usd = million * 1_000_000;
+  const correctYen = usd * RATE;
+  const correctOku = Math.round(correctYen / 100_000_000);
+
   return {
-    text: `$${million}M は日本円でいくら？`,
+    textJa: `$${million}M は日本円でいくら？`,
+    textEn: `How much is $${million}M in JPY?`,
     correct: correctOku,
-    options: Array.from(options).sort(() => Math.random() - 0.5),
+    options: generateOptions(correctOku),
   };
 }
 
 export default function Home() {
+  const [lang, setLang] = useState<Lang>("ja");
   const [question, setQuestion] = useState(generateQuestion());
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
+
+  const t = {
+    ja: {
+      title: "通貨トレーニング",
+      next: "次へ",
+      correct: "正解！",
+      wrong: "不正解！正解は",
+      rate: "固定レート：1ドル=150円",
+      unit: "億円",
+      switch: "English",
+    },
+    en: {
+      title: "Currency Training",
+      next: "Next",
+      correct: "Correct!",
+      wrong: "Wrong! The correct answer is",
+      rate: "Fixed rate: USD 1 = JPY 150",
+      unit: "hundred million yen",
+      switch: "日本語",
+    },
+  }[lang];
 
   function selectAnswer(value: number) {
     if (selected !== null) return;
@@ -52,9 +87,9 @@ export default function Home() {
     setSelected(value);
 
     if (value === question.correct) {
-      setResult("正解！");
+      setResult(t.correct);
     } else {
-      setResult(`不正解！正解は ${question.correct}億円`);
+      setResult(`${t.wrong} ${question.correct}${lang === "ja" ? "億円" : " hundred million yen"}`);
     }
   }
 
@@ -65,14 +100,29 @@ export default function Home() {
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 500, margin: "0 auto" }}>
-      <h1>通貨トレーニング</h1>
+    <main style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>{t.title}</h1>
+
+        <button
+          onClick={() => setLang(lang === "ja" ? "en" : "ja")}
+          style={{
+            padding: "8px 12px",
+            fontSize: 14,
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            background: "white",
+            cursor: "pointer",
+          }}
+        >
+          {t.switch}
+        </button>
+      </div>
 
       <p style={{ fontSize: 24, fontWeight: "bold", marginTop: 20 }}>
-        {question.text}
+        {lang === "ja" ? question.textJa : question.textEn}
       </p>
 
-      {/* 4択ボタン */}
       <div
         style={{
           display: "grid",
@@ -85,11 +135,11 @@ export default function Home() {
           const isCorrect = opt === question.correct;
           const isSelected = opt === selected;
 
-          let background = "#4da6ff"; // デフォルト水色
+          let background = "#4da6ff";
 
           if (selected !== null) {
-            if (isCorrect) background = "#4caf50"; // 正解 緑
-            else if (isSelected) background = "#f44336"; // 間違い 赤
+            if (isCorrect) background = "#4caf50";
+            else if (isSelected) background = "#f44336";
           }
 
           return (
@@ -107,7 +157,7 @@ export default function Home() {
                 cursor: "pointer",
               }}
             >
-              {opt}億円
+              {lang === "ja" ? `${opt}億円` : `${opt} hundred million yen`}
             </button>
           );
         })}
@@ -123,12 +173,10 @@ export default function Home() {
           fontSize: 16,
         }}
       >
-        次へ
+        {t.next}
       </button>
 
-      <p style={{ marginTop: 30, color: "#888" }}>
-        固定レート：1ドル=150円
-      </p>
+      <p style={{ marginTop: 30, color: "#888" }}>{t.rate}</p>
     </main>
   );
 }
