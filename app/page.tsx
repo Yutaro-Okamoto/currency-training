@@ -131,7 +131,8 @@ function generateQuestion(rates: Rates): Question {
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("ja");
-  const [rates, setRates] = useState<Rates>({ USD: 150, EUR: 160 });
+  const [rates, setRates] = useState<Rates | null>(null);
+  const [rateDate, setRateDate] = useState("");
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
@@ -139,26 +140,28 @@ export default function Home() {
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
-    fetch("https://api.frankfurter.app/latest?from=JPY")
-      .then((res) => res.json())
-      .then((data) => {
+    Promise.all([
+      fetch("https://api.frankfurter.dev/v2/rates?base=USD&symbols=JPY").then((res) => res.json()),
+      fetch("https://api.frankfurter.dev/v2/rates?base=EUR&symbols=JPY").then((res) => res.json()),
+    ])
+      .then(([usdData, eurData]) => {
         setRates({
-          USD: 1 / data.rates.USD,
-          EUR: 1 / data.rates.EUR,
+          USD: usdData.rates.JPY,
+          EUR: eurData.rates.JPY,
         });
+        setRateDate(usdData.date || "");
       })
       .catch(() => {
         setRates({ USD: 150, EUR: 160 });
+        setRateDate("API取得失敗・仮レート");
       });
   }, []);
 
   useEffect(() => {
-    setQuestion(generateQuestion(rates));
+    if (rates) {
+      setQuestion(generateQuestion(rates));
+    }
   }, [rates]);
-
-  if (!question) return <p>Loading...</p>;
-
-  const accuracy = totalCount === 0 ? 0 : Math.round((correctCount / totalCount) * 100);
 
   const t = {
     ja: {
@@ -169,6 +172,7 @@ export default function Home() {
       switch: "English",
       score: "スコア",
       rateLabel: "参考レート",
+      loading: "為替レート取得中...",
     },
     en: {
       title: "Currency Training",
@@ -178,11 +182,14 @@ export default function Home() {
       switch: "日本語",
       score: "Score",
       rateLabel: "Reference rates",
+      loading: "Loading exchange rates...",
     },
   }[lang];
 
+  const accuracy = totalCount === 0 ? 0 : Math.round((correctCount / totalCount) * 100);
+
   function selectAnswer(value: number) {
-    if (selected !== null) return;
+    if (!question || selected !== null) return;
 
     setSelected(value);
     setTotalCount(totalCount + 1);
@@ -196,9 +203,14 @@ export default function Home() {
   }
 
   function nextQuestion() {
+    if (!rates) return;
     setQuestion(generateQuestion(rates));
     setSelected(null);
     setResult("");
+  }
+
+  if (!question || !rates) {
+    return <main style={{ padding: 24 }}>{t.loading}</main>;
   }
 
   return (
@@ -211,7 +223,7 @@ export default function Home() {
           style={{
             padding: "8px 12px",
             borderRadius: 8,
-            border: "1px solid white",
+            border: "1px solid #ccc",
             background: "white",
             color: "black",
             fontWeight: "bold",
@@ -272,6 +284,7 @@ export default function Home() {
         <p>{t.rateLabel}</p>
         <p>USD/JPY: {rates.USD.toFixed(2)}</p>
         <p>EUR/JPY: {rates.EUR.toFixed(2)}</p>
+        {rateDate && <p>Date: {rateDate}</p>}
       </div>
     </main>
   );
