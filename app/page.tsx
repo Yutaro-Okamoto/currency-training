@@ -1,11 +1,13 @@
 "use client";
-import { useState } from "react";
-
-const USD_RATE = 150;
-const EUR_RATE = 160;
+import { useEffect, useState } from "react";
 
 type Lang = "ja" | "en";
 type Currency = "JPY" | "USD" | "EUR";
+
+type Rates = {
+  USD: number;
+  EUR: number;
+};
 
 type Question = {
   textJa: string;
@@ -23,38 +25,36 @@ function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
-function roundSmart(num: number) {
-  if (num >= 100) return Math.round(num);
-  if (num >= 10) return Math.round(num * 10) / 10;
-  return Math.round(num * 100) / 100;
+function roundNice(num: number) {
+  if (num >= 1_000_000_000) return Math.round(num / 1_000_000_000) * 1_000_000_000;
+  if (num >= 1_000_000) return Math.round(num / 1_000_000) * 1_000_000;
+  if (num >= 1_000) return Math.round(num / 1_000) * 1_000;
+  return Math.round(num);
 }
 
+// 日本円フォーマット
 function formatJapaneseYen(value: number) {
   if (value >= 1_0000_0000_0000) {
-    return `${roundSmart(value / 1_0000_0000_0000)}兆円`;
+    return `${Math.round(value / 1_0000_0000_0000)}兆円`;
   }
   if (value >= 1_0000_0000) {
-    return `${roundSmart(value / 1_0000_0000)}億円`;
+    return `${Math.round(value / 1_0000_0000)}億円`;
   }
   if (value >= 1_0000) {
-    return `${roundSmart(value / 1_0000)}万円`;
+    return `${Math.round(value / 1_0000)}万円`;
   }
   return `${Math.round(value).toLocaleString()}円`;
 }
 
+// 外貨フォーマット
 function formatForeign(value: number, currency: "USD" | "EUR") {
   const symbol = currency === "USD" ? "$" : "€";
 
-  if (value >= 1_000_000_000) {
-    return `${symbol}${roundSmart(value / 1_000_000_000)}B`;
-  }
-  if (value >= 1_000_000) {
-    return `${symbol}${roundSmart(value / 1_000_000)}M`;
-  }
-  if (value >= 1_000) {
-    return `${symbol}${roundSmart(value / 1_000)}K`;
-  }
-  return `${symbol}${Math.round(value).toLocaleString()}`;
+  if (value >= 1_000_000_000) return `${symbol}${Math.round(value / 1_000_000_000)}B`;
+  if (value >= 1_000_000) return `${symbol}${Math.round(value / 1_000_000)}M`;
+  if (value >= 1_000) return `${symbol}${Math.round(value / 1_000)}K`;
+
+  return `${symbol}${Math.round(value)}`;
 }
 
 function formatAnswer(value: number, currency: Currency) {
@@ -66,38 +66,18 @@ function generateOptions(correct: number) {
   const options = new Set<number>();
   options.add(correct);
 
-  // 正解に近い選択肢：±15〜25%くらい
-  const nearMultiplier = randomFrom([0.75, 0.82, 0.87, 1.13, 1.18, 1.25]);
-  options.add(Math.max(1, Math.round(correct * nearMultiplier)));
+  const near = roundNice(correct * randomFrom([0.8, 1.2]));
+  options.add(near);
 
-  // 桁違いだけど、数字にもバラつきを持たせる
-  const bigMissMultipliers = shuffle([
-    randomFrom([0.012, 0.018, 0.025, 0.033, 0.047]),
-    randomFrom([0.12, 0.18, 0.25, 0.33, 0.47]),
-    randomFrom([7.5, 12, 18, 25, 33]),
-    randomFrom([75, 120, 180, 250, 330]),
-  ]);
-
-  for (const multiplier of bigMissMultipliers) {
-    if (options.size >= 4) break;
-
-    const option = Math.max(1, Math.round(correct * multiplier));
-    options.add(option);
-  }
-
-  // 万一かぶった時の保険
   while (options.size < 4) {
-    const fallback = Math.max(
-      1,
-      Math.round(correct * randomFrom([0.07, 0.14, 0.29, 3.7, 8.4, 16, 42]))
-    );
-    options.add(fallback);
+    const miss = roundNice(correct * randomFrom([0.03, 0.2, 5, 20]));
+    options.add(Math.max(1, miss));
   }
 
   return shuffle(Array.from(options));
 }
 
-function generateQuestion(): Question {
+function generateQuestion(rates: Rates): Question {
   const type = randomFrom([
     "USD_TO_JPY",
     "EUR_TO_JPY",
@@ -106,8 +86,9 @@ function generateQuestion(): Question {
   ]);
 
   if (type === "USD_TO_JPY") {
-    const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
-    const correct = million * 1_000_000 * USD_RATE;
+    const million = randomFrom([10, 50, 100, 300, 500]);
+    const usd = million * 1_000_000;
+    const correct = roundNice(usd * rates.USD);
 
     return {
       textJa: `$${million}M は日本円でいくら？`,
@@ -119,8 +100,9 @@ function generateQuestion(): Question {
   }
 
   if (type === "EUR_TO_JPY") {
-    const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
-    const correct = million * 1_000_000 * EUR_RATE;
+    const million = randomFrom([10, 50, 100, 300, 500]);
+    const eur = million * 1_000_000;
+    const correct = roundNice(eur * rates.EUR);
 
     return {
       textJa: `€${million}M は日本円でいくら？`,
@@ -132,9 +114,9 @@ function generateQuestion(): Question {
   }
 
   if (type === "JPY_TO_USD") {
-    const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
+    const oku = randomFrom([10, 50, 100, 300]);
     const jpy = oku * 100_000_000;
-    const correct = Math.round(jpy / USD_RATE);
+    const correct = roundNice(jpy / rates.USD);
 
     return {
       textJa: `${formatJapaneseYen(jpy)} はドルでいくら？`,
@@ -145,9 +127,9 @@ function generateQuestion(): Question {
     };
   }
 
-  const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
+  const oku = randomFrom([10, 50, 100, 300]);
   const jpy = oku * 100_000_000;
-  const correct = Math.round(jpy / EUR_RATE);
+  const correct = roundNice(jpy / rates.EUR);
 
   return {
     textJa: `${formatJapaneseYen(jpy)} はユーロでいくら？`,
@@ -160,9 +142,27 @@ function generateQuestion(): Question {
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("ja");
-  const [question, setQuestion] = useState<Question>(generateQuestion());
+  const [rates, setRates] = useState<Rates>({ USD: 150, EUR: 160 });
+  const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
+
+  useEffect(() => {
+    fetch("https://api.frankfurter.app/latest?from=JPY")
+      .then((res) => res.json())
+      .then((data) => {
+        setRates({
+          USD: 1 / data.rates.USD,
+          EUR: 1 / data.rates.EUR,
+        });
+      });
+  }, []);
+
+  useEffect(() => {
+    setQuestion(generateQuestion(rates));
+  }, [rates]);
+
+  if (!question) return <p>Loading...</p>;
 
   const t = {
     ja: {
@@ -170,7 +170,6 @@ export default function Home() {
       correct: "正解！",
       wrong: "不正解！正解は",
       next: "次へ",
-      rate: "固定レート：1ドル=150円 / 1ユーロ=160円",
       switch: "English",
     },
     en: {
@@ -178,7 +177,6 @@ export default function Home() {
       correct: "Correct!",
       wrong: "Wrong! Correct answer:",
       next: "Next",
-      rate: "Fixed rate: USD 1 = JPY 150 / EUR 1 = JPY 160",
       switch: "日本語",
     },
   }[lang];
@@ -196,13 +194,15 @@ export default function Home() {
   }
 
   function nextQuestion() {
-    setQuestion(generateQuestion());
+    setQuestion(generateQuestion(rates));
     setSelected(null);
     setResult("");
   }
 
   return (
     <main style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
+      
+      {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <h1>{t.title}</h1>
 
@@ -211,8 +211,10 @@ export default function Home() {
           style={{
             padding: "8px 12px",
             borderRadius: 8,
-            border: "1px solid #ccc",
+            border: "1px solid white",
             background: "white",
+            color: "black",
+            fontWeight: "bold",
             cursor: "pointer",
           }}
         >
@@ -220,10 +222,12 @@ export default function Home() {
         </button>
       </div>
 
+      {/* 問題 */}
       <p style={{ fontSize: 24, fontWeight: "bold", marginTop: 20 }}>
         {lang === "ja" ? question.textJa : question.textEn}
       </p>
 
+      {/* 4択 */}
       <div
         style={{
           display: "grid",
@@ -268,16 +272,10 @@ export default function Home() {
 
       <button
         onClick={nextQuestion}
-        style={{
-          marginTop: 20,
-          padding: 12,
-          fontSize: 16,
-        }}
+        style={{ marginTop: 20, padding: 12 }}
       >
         {t.next}
       </button>
-
-      <p style={{ marginTop: 30, color: "#888" }}>{t.rate}</p>
     </main>
   );
 }
