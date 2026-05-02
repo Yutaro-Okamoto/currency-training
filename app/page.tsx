@@ -66,12 +66,32 @@ function generateOptions(correct: number) {
   const options = new Set<number>();
   options.add(correct);
 
-  const near = Math.round(correct * randomFrom([0.85, 1.15]));
-  options.add(near);
+  // 正解に近い選択肢：±15〜25%くらい
+  const nearMultiplier = randomFrom([0.75, 0.82, 0.87, 1.13, 1.18, 1.25]);
+  options.add(Math.max(1, Math.round(correct * nearMultiplier)));
 
+  // 桁違いだけど、数字にもバラつきを持たせる
+  const bigMissMultipliers = shuffle([
+    randomFrom([0.012, 0.018, 0.025, 0.033, 0.047]),
+    randomFrom([0.12, 0.18, 0.25, 0.33, 0.47]),
+    randomFrom([7.5, 12, 18, 25, 33]),
+    randomFrom([75, 120, 180, 250, 330]),
+  ]);
+
+  for (const multiplier of bigMissMultipliers) {
+    if (options.size >= 4) break;
+
+    const option = Math.max(1, Math.round(correct * multiplier));
+    options.add(option);
+  }
+
+  // 万一かぶった時の保険
   while (options.size < 4) {
-    const miss = Math.round(correct * randomFrom([0.01, 0.1, 10, 100]));
-    options.add(Math.max(1, miss));
+    const fallback = Math.max(
+      1,
+      Math.round(correct * randomFrom([0.07, 0.14, 0.29, 3.7, 8.4, 16, 42]))
+    );
+    options.add(fallback);
   }
 
   return shuffle(Array.from(options));
