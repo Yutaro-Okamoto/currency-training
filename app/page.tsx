@@ -1,15 +1,18 @@
 "use client";
 import { useState } from "react";
 
-const RATE = 150;
+const USD_RATE = 150;
+const EUR_RATE = 160;
 
 type Lang = "ja" | "en";
+type Currency = "JPY" | "USD" | "EUR";
 
 type Question = {
   textJa: string;
   textEn: string;
-  correct: number; // 円
-  options: number[]; // 円
+  correct: number;
+  answerCurrency: Currency;
+  options: number[];
 };
 
 function randomFrom<T>(arr: T[]) {
@@ -20,62 +23,124 @@ function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
-// 日本語フォーマット（万・億・兆）
-function formatJapaneseYen(value: number) {
-  if (value >= 1_0000_0000_0000) {
-    const cho = value / 1_0000_0000_0000;
-    return `${roundSmart(cho)}兆円`;
-  } else if (value >= 1_0000_0000) {
-    const oku = value / 1_0000_0000;
-    return `${roundSmart(oku)}億円`;
-  } else if (value >= 1_0000) {
-    const man = value / 1_0000;
-    return `${roundSmart(man)}万円`;
-  } else {
-    return `${value}円`;
-  }
-}
-
 function roundSmart(num: number) {
   if (num >= 100) return Math.round(num);
   if (num >= 10) return Math.round(num * 10) / 10;
   return Math.round(num * 100) / 100;
 }
 
-// 選択肢生成（実務っぽく）
+function formatJapaneseYen(value: number) {
+  if (value >= 1_0000_0000_0000) {
+    return `${roundSmart(value / 1_0000_0000_0000)}兆円`;
+  }
+  if (value >= 1_0000_0000) {
+    return `${roundSmart(value / 1_0000_0000)}億円`;
+  }
+  if (value >= 1_0000) {
+    return `${roundSmart(value / 1_0000)}万円`;
+  }
+  return `${Math.round(value).toLocaleString()}円`;
+}
+
+function formatForeign(value: number, currency: "USD" | "EUR") {
+  const symbol = currency === "USD" ? "$" : "€";
+
+  if (value >= 1_000_000_000) {
+    return `${symbol}${roundSmart(value / 1_000_000_000)}B`;
+  }
+  if (value >= 1_000_000) {
+    return `${symbol}${roundSmart(value / 1_000_000)}M`;
+  }
+  if (value >= 1_000) {
+    return `${symbol}${roundSmart(value / 1_000)}K`;
+  }
+  return `${symbol}${Math.round(value).toLocaleString()}`;
+}
+
+function formatAnswer(value: number, currency: Currency) {
+  if (currency === "JPY") return formatJapaneseYen(value);
+  return formatForeign(value, currency);
+}
+
 function generateOptions(correct: number) {
   const options = new Set<number>();
   options.add(correct);
 
-  // ±15%
   const near = Math.round(correct * randomFrom([0.85, 1.15]));
   options.add(near);
 
-  // 桁ズレ（1〜2桁）
   while (options.size < 4) {
-    const bigMiss = Math.round(correct * randomFrom([0.01, 0.1, 10, 100]));
-    options.add(Math.max(1, bigMiss));
+    const miss = Math.round(correct * randomFrom([0.01, 0.1, 10, 100]));
+    options.add(Math.max(1, miss));
   }
 
   return shuffle(Array.from(options));
 }
 
 function generateQuestion(): Question {
-  const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
-  const usd = million * 1_000_000;
-  const correct = usd * RATE;
+  const type = randomFrom([
+    "USD_TO_JPY",
+    "EUR_TO_JPY",
+    "JPY_TO_USD",
+    "JPY_TO_EUR",
+  ]);
+
+  if (type === "USD_TO_JPY") {
+    const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
+    const correct = million * 1_000_000 * USD_RATE;
+
+    return {
+      textJa: `$${million}M は日本円でいくら？`,
+      textEn: `How much is $${million}M in JPY?`,
+      correct,
+      answerCurrency: "JPY",
+      options: generateOptions(correct),
+    };
+  }
+
+  if (type === "EUR_TO_JPY") {
+    const million = randomFrom([10, 20, 50, 100, 300, 500, 1000]);
+    const correct = million * 1_000_000 * EUR_RATE;
+
+    return {
+      textJa: `€${million}M は日本円でいくら？`,
+      textEn: `How much is €${million}M in JPY?`,
+      correct,
+      answerCurrency: "JPY",
+      options: generateOptions(correct),
+    };
+  }
+
+  if (type === "JPY_TO_USD") {
+    const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
+    const jpy = oku * 100_000_000;
+    const correct = Math.round(jpy / USD_RATE);
+
+    return {
+      textJa: `${formatJapaneseYen(jpy)} はドルでいくら？`,
+      textEn: `How much is ${formatJapaneseYen(jpy)} in USD?`,
+      correct,
+      answerCurrency: "USD",
+      options: generateOptions(correct),
+    };
+  }
+
+  const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
+  const jpy = oku * 100_000_000;
+  const correct = Math.round(jpy / EUR_RATE);
 
   return {
-    textJa: `$${million}M は日本円でいくら？`,
-    textEn: `How much is $${million}M in JPY?`,
+    textJa: `${formatJapaneseYen(jpy)} はユーロでいくら？`,
+    textEn: `How much is ${formatJapaneseYen(jpy)} in EUR?`,
     correct,
+    answerCurrency: "EUR",
     options: generateOptions(correct),
   };
 }
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("ja");
-  const [question, setQuestion] = useState(generateQuestion());
+  const [question, setQuestion] = useState<Question>(generateQuestion());
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
 
@@ -85,7 +150,7 @@ export default function Home() {
       correct: "正解！",
       wrong: "不正解！正解は",
       next: "次へ",
-      rate: "固定レート：1ドル=150円",
+      rate: "固定レート：1ドル=150円 / 1ユーロ=160円",
       switch: "English",
     },
     en: {
@@ -93,7 +158,7 @@ export default function Home() {
       correct: "Correct!",
       wrong: "Wrong! Correct answer:",
       next: "Next",
-      rate: "USD 1 = JPY 150",
+      rate: "Fixed rate: USD 1 = JPY 150 / EUR 1 = JPY 160",
       switch: "日本語",
     },
   }[lang];
@@ -106,7 +171,7 @@ export default function Home() {
     if (value === question.correct) {
       setResult(t.correct);
     } else {
-      setResult(`${t.wrong} ${formatJapaneseYen(question.correct)}`);
+      setResult(`${t.wrong} ${formatAnswer(question.correct, question.answerCurrency)}`);
     }
   }
 
@@ -118,8 +183,6 @@ export default function Home() {
 
   return (
     <main style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-      
-      {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <h1>{t.title}</h1>
 
@@ -137,12 +200,10 @@ export default function Home() {
         </button>
       </div>
 
-      {/* 問題 */}
       <p style={{ fontSize: 24, fontWeight: "bold", marginTop: 20 }}>
         {lang === "ja" ? question.textJa : question.textEn}
       </p>
 
-      {/* 4択 */}
       <div
         style={{
           display: "grid",
@@ -177,16 +238,14 @@ export default function Home() {
                 cursor: "pointer",
               }}
             >
-              {formatJapaneseYen(opt)}
+              {formatAnswer(opt, question.answerCurrency)}
             </button>
           );
         })}
       </div>
 
-      {/* 結果 */}
       <p style={{ marginTop: 20, fontSize: 18 }}>{result}</p>
 
-      {/* 次へ */}
       <button
         onClick={nextQuestion}
         style={{
