@@ -32,28 +32,18 @@ function roundNice(num: number) {
   return Math.round(num);
 }
 
-// 日本円フォーマット
 function formatJapaneseYen(value: number) {
-  if (value >= 1_0000_0000_0000) {
-    return `${Math.round(value / 1_0000_0000_0000)}兆円`;
-  }
-  if (value >= 1_0000_0000) {
-    return `${Math.round(value / 1_0000_0000)}億円`;
-  }
-  if (value >= 1_0000) {
-    return `${Math.round(value / 1_0000)}万円`;
-  }
+  if (value >= 1_0000_0000_0000) return `${Math.round(value / 1_0000_0000_0000)}兆円`;
+  if (value >= 1_0000_0000) return `${Math.round(value / 1_0000_0000)}億円`;
+  if (value >= 1_0000) return `${Math.round(value / 1_0000)}万円`;
   return `${Math.round(value).toLocaleString()}円`;
 }
 
-// 外貨フォーマット
 function formatForeign(value: number, currency: "USD" | "EUR") {
   const symbol = currency === "USD" ? "$" : "€";
-
   if (value >= 1_000_000_000) return `${symbol}${Math.round(value / 1_000_000_000)}B`;
   if (value >= 1_000_000) return `${symbol}${Math.round(value / 1_000_000)}M`;
   if (value >= 1_000) return `${symbol}${Math.round(value / 1_000)}K`;
-
   return `${symbol}${Math.round(value)}`;
 }
 
@@ -66,30 +56,33 @@ function generateOptions(correct: number) {
   const options = new Set<number>();
   options.add(correct);
 
-  const near = roundNice(correct * randomFrom([0.8, 1.2]));
-  options.add(near);
+  options.add(roundNice(correct * randomFrom([0.75, 0.82, 0.87, 1.13, 1.18, 1.25])));
+
+  const multipliers = shuffle([
+    randomFrom([0.012, 0.018, 0.025, 0.033, 0.047]),
+    randomFrom([0.12, 0.18, 0.25, 0.33, 0.47]),
+    randomFrom([7.5, 12, 18, 25, 33]),
+    randomFrom([75, 120, 180, 250, 330]),
+  ]);
+
+  for (const m of multipliers) {
+    if (options.size >= 4) break;
+    options.add(Math.max(1, roundNice(correct * m)));
+  }
 
   while (options.size < 4) {
-    const miss = roundNice(correct * randomFrom([0.03, 0.2, 5, 20]));
-    options.add(Math.max(1, miss));
+    options.add(Math.max(1, roundNice(correct * randomFrom([0.07, 0.14, 0.29, 3.7, 8.4, 16, 42]))));
   }
 
   return shuffle(Array.from(options));
 }
 
 function generateQuestion(rates: Rates): Question {
-  const type = randomFrom([
-    "USD_TO_JPY",
-    "EUR_TO_JPY",
-    "JPY_TO_USD",
-    "JPY_TO_EUR",
-  ]);
+  const type = randomFrom(["USD_TO_JPY", "EUR_TO_JPY", "JPY_TO_USD", "JPY_TO_EUR"]);
 
   if (type === "USD_TO_JPY") {
     const million = randomFrom([10, 50, 100, 300, 500]);
-    const usd = million * 1_000_000;
-    const correct = roundNice(usd * rates.USD);
-
+    const correct = roundNice(million * 1_000_000 * rates.USD);
     return {
       textJa: `$${million}M は日本円でいくら？`,
       textEn: `How much is $${million}M in JPY?`,
@@ -101,9 +94,7 @@ function generateQuestion(rates: Rates): Question {
 
   if (type === "EUR_TO_JPY") {
     const million = randomFrom([10, 50, 100, 300, 500]);
-    const eur = million * 1_000_000;
-    const correct = roundNice(eur * rates.EUR);
-
+    const correct = roundNice(million * 1_000_000 * rates.EUR);
     return {
       textJa: `€${million}M は日本円でいくら？`,
       textEn: `How much is €${million}M in JPY?`,
@@ -117,7 +108,6 @@ function generateQuestion(rates: Rates): Question {
     const oku = randomFrom([10, 50, 100, 300]);
     const jpy = oku * 100_000_000;
     const correct = roundNice(jpy / rates.USD);
-
     return {
       textJa: `${formatJapaneseYen(jpy)} はドルでいくら？`,
       textEn: `How much is ${formatJapaneseYen(jpy)} in USD?`,
@@ -130,7 +120,6 @@ function generateQuestion(rates: Rates): Question {
   const oku = randomFrom([10, 50, 100, 300]);
   const jpy = oku * 100_000_000;
   const correct = roundNice(jpy / rates.EUR);
-
   return {
     textJa: `${formatJapaneseYen(jpy)} はユーロでいくら？`,
     textEn: `How much is ${formatJapaneseYen(jpy)} in EUR?`,
@@ -146,6 +135,8 @@ export default function Home() {
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
+  const [correctCount, setCorrectCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     fetch("https://api.frankfurter.app/latest?from=JPY")
@@ -155,6 +146,9 @@ export default function Home() {
           USD: 1 / data.rates.USD,
           EUR: 1 / data.rates.EUR,
         });
+      })
+      .catch(() => {
+        setRates({ USD: 150, EUR: 160 });
       });
   }, []);
 
@@ -164,6 +158,8 @@ export default function Home() {
 
   if (!question) return <p>Loading...</p>;
 
+  const accuracy = totalCount === 0 ? 0 : Math.round((correctCount / totalCount) * 100);
+
   const t = {
     ja: {
       title: "通貨トレーニング",
@@ -171,6 +167,8 @@ export default function Home() {
       wrong: "不正解！正解は",
       next: "次へ",
       switch: "English",
+      score: "スコア",
+      rateLabel: "参考レート",
     },
     en: {
       title: "Currency Training",
@@ -178,6 +176,8 @@ export default function Home() {
       wrong: "Wrong! Correct answer:",
       next: "Next",
       switch: "日本語",
+      score: "Score",
+      rateLabel: "Reference rates",
     },
   }[lang];
 
@@ -185,8 +185,10 @@ export default function Home() {
     if (selected !== null) return;
 
     setSelected(value);
+    setTotalCount(totalCount + 1);
 
     if (value === question.correct) {
+      setCorrectCount(correctCount + 1);
       setResult(t.correct);
     } else {
       setResult(`${t.wrong} ${formatAnswer(question.correct, question.answerCurrency)}`);
@@ -201,8 +203,6 @@ export default function Home() {
 
   return (
     <main style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-      
-      {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <h1>{t.title}</h1>
 
@@ -222,26 +222,20 @@ export default function Home() {
         </button>
       </div>
 
-      {/* 問題 */}
+      <p style={{ marginTop: 8, color: "#aaa" }}>
+        {t.score}: {correctCount} / {totalCount}（{accuracy}%）
+      </p>
+
       <p style={{ fontSize: 24, fontWeight: "bold", marginTop: 20 }}>
         {lang === "ja" ? question.textJa : question.textEn}
       </p>
 
-      {/* 4択 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          marginTop: 20,
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 20 }}>
         {question.options.map((opt) => {
           const isCorrect = opt === question.correct;
           const isSelected = opt === selected;
 
           let bg = "#4da6ff";
-
           if (selected !== null) {
             if (isCorrect) bg = "#4caf50";
             else if (isSelected) bg = "#f44336";
@@ -270,12 +264,15 @@ export default function Home() {
 
       <p style={{ marginTop: 20, fontSize: 18 }}>{result}</p>
 
-      <button
-        onClick={nextQuestion}
-        style={{ marginTop: 20, padding: 12 }}
-      >
+      <button onClick={nextQuestion} style={{ marginTop: 20, padding: 12 }}>
         {t.next}
       </button>
+
+      <div style={{ marginTop: 32, color: "#aaa", fontSize: 14 }}>
+        <p>{t.rateLabel}</p>
+        <p>USD/JPY: {rates.USD.toFixed(2)}</p>
+        <p>EUR/JPY: {rates.EUR.toFixed(2)}</p>
+      </div>
     </main>
   );
 }
