@@ -1,203 +1,133 @@
 "use client";
 import { useState } from "react";
 
-const RATES = {
-  USD_JPY: 150,
-  EUR_JPY: 165,
-};
-
-type UnitOption = {
-  label: string;
-  multiplier: number;
-};
+const RATE = 150;
 
 type Question = {
   text: string;
   correct: number;
-  unit: string;
-  unitOptions: UnitOption[];
-  explanation: string;
+  options: number[];
 };
 
-const JPY_UNITS: UnitOption[] = [
-  { label: "円", multiplier: 1 },
-  { label: "万円", multiplier: 10_000 },
-  { label: "億円", multiplier: 100_000_000 },
-];
-
-const USD_UNITS: UnitOption[] = [
-  { label: "ドル", multiplier: 1 },
-  { label: "Kドル", multiplier: 1_000 },
-  { label: "Mドル", multiplier: 1_000_000 },
-  { label: "Bドル", multiplier: 1_000_000_000 },
-];
-
-const EUR_UNITS: UnitOption[] = [
-  { label: "ユーロ", multiplier: 1 },
-  { label: "Kユーロ", multiplier: 1_000 },
-  { label: "Mユーロ", multiplier: 1_000_000 },
-  { label: "Bユーロ", multiplier: 1_000_000_000 },
-];
-
-function randomFrom<T>(items: T[]) {
-  return items[Math.floor(Math.random() * items.length)];
+function randomFrom<T>(arr: T[]) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function formatNumber(num: number) {
-  return Math.round(num).toLocaleString();
+function formatYen(num: number) {
+  const oku = Math.round(num / 100_000_000);
+  return `${oku}億円`;
 }
 
 function generateQuestion(): Question {
-  const type = randomFrom(["USD_TO_JPY", "EUR_TO_JPY", "JPY_TO_USD", "JPY_TO_EUR"]);
+  const million = randomFrom([10, 20, 50, 100, 300]);
+  const usd = million * 1_000_000;
+  const correct = usd * RATE;
 
-  if (type === "USD_TO_JPY") {
-    const million = randomFrom([5, 10, 20, 50, 100, 300, 500]);
-    const usd = million * 1_000_000;
-    const correct = usd * RATES.USD_JPY;
+  const correctOku = Math.round(correct / 100_000_000);
 
-    return {
-      text: `$${million}M は日本円でいくら？`,
-      correct,
-      unit: "円",
-      unitOptions: JPY_UNITS,
-      explanation: `1ドル=${RATES.USD_JPY}円なので、${million}Mドル ≒ ${formatNumber(correct)}円`,
-    };
+  // ダミー選択肢生成
+  const options = new Set<number>();
+  options.add(correctOku);
+
+  while (options.size < 4) {
+    const fake = correctOku + randomFrom([-20, -10, -5, 5, 10, 20]);
+    if (fake > 0) options.add(fake);
   }
-
-  if (type === "EUR_TO_JPY") {
-    const million = randomFrom([5, 10, 20, 50, 100, 300, 500]);
-    const eur = million * 1_000_000;
-    const correct = eur * RATES.EUR_JPY;
-
-    return {
-      text: `€${million}M は日本円でいくら？`,
-      correct,
-      unit: "円",
-      unitOptions: JPY_UNITS,
-      explanation: `1ユーロ=${RATES.EUR_JPY}円なので、${million}Mユーロ ≒ ${formatNumber(correct)}円`,
-    };
-  }
-
-  if (type === "JPY_TO_USD") {
-    const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
-    const jpy = oku * 100_000_000;
-    const correct = jpy / RATES.USD_JPY;
-
-    return {
-      text: `${oku}億円はドルでいくら？`,
-      correct,
-      unit: "ドル",
-      unitOptions: USD_UNITS,
-      explanation: `1ドル=${RATES.USD_JPY}円なので、${oku}億円 ≒ $${formatNumber(correct)}`,
-    };
-  }
-
-  const oku = randomFrom([10, 30, 50, 100, 300, 500, 1000]);
-  const jpy = oku * 100_000_000;
-  const correct = jpy / RATES.EUR_JPY;
 
   return {
-    text: `${oku}億円はユーロでいくら？`,
-    correct,
-    unit: "ユーロ",
-    unitOptions: EUR_UNITS,
-    explanation: `1ユーロ=${RATES.EUR_JPY}円なので、${oku}億円 ≒ €${formatNumber(correct)}`,
+    text: `$${million}M は日本円でいくら？`,
+    correct: correctOku,
+    options: Array.from(options).sort(() => Math.random() - 0.5),
   };
 }
 
 export default function Home() {
-  const [question, setQuestion] = useState<Question>(generateQuestion());
-  const [answerNumber, setAnswerNumber] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState(question.unitOptions[0].label);
+  const [question, setQuestion] = useState(generateQuestion());
+  const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
 
-  function getSelectedMultiplier() {
-    const option = question.unitOptions.find((u) => u.label === selectedUnit);
-    return option ? option.multiplier : 1;
-  }
+  function selectAnswer(value: number) {
+    if (selected !== null) return;
 
-  function checkAnswer() {
-    const numericAnswer = Number(answerNumber.replace(/,/g, ""));
-    const userAnswer = numericAnswer * getSelectedMultiplier();
+    setSelected(value);
 
-    if (!numericAnswer || numericAnswer <= 0) {
-      setResult("数字を入力してください");
-      return;
-    }
-
-    const diff = Math.abs(userAnswer - question.correct) / question.correct;
-
-    if (diff <= 0.05) {
-      setResult(`Perfect！誤差5%以内。${question.explanation}`);
-    } else if (diff <= 0.1) {
-      setResult(`OK！誤差10%以内。${question.explanation}`);
+    if (value === question.correct) {
+      setResult("正解！");
     } else {
-      setResult(
-        `惜しい！正解は約 ${formatNumber(question.correct)} ${question.unit}。${question.explanation}`
-      );
+      setResult(`不正解！正解は ${question.correct}億円`);
     }
   }
 
   function nextQuestion() {
-    const newQuestion = generateQuestion();
-    setQuestion(newQuestion);
-    setAnswerNumber("");
-    setSelectedUnit(newQuestion.unitOptions[0].label);
+    setQuestion(generateQuestion());
+    setSelected(null);
     setResult("");
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 520 }}>
+    <main style={{ padding: 24, maxWidth: 500, margin: "0 auto" }}>
       <h1>通貨トレーニング</h1>
 
-      <p style={{ fontSize: 24, fontWeight: "bold" }}>
+      <p style={{ fontSize: 24, fontWeight: "bold", marginTop: 20 }}>
         {question.text}
       </p>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16 }}>
-        <input
-          value={answerNumber}
-          onChange={(e) => setAnswerNumber(e.target.value)}
-          placeholder="数字"
-          inputMode="decimal"
-          style={{
-            fontSize: 20,
-            padding: 12,
-            width: "60%",
-          }}
-        />
+      {/* 4択ボタン */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          marginTop: 20,
+        }}
+      >
+        {question.options.map((opt) => {
+          const isCorrect = opt === question.correct;
+          const isSelected = opt === selected;
 
-        <select
-          value={selectedUnit}
-          onChange={(e) => setSelectedUnit(e.target.value)}
-          style={{
-            fontSize: 20,
-            padding: 12,
-            width: "40%",
-          }}
-        >
-          {question.unitOptions.map((unit) => (
-            <option key={unit.label} value={unit.label}>
-              {unit.label}
-            </option>
-          ))}
-        </select>
+          let background = "#4da6ff"; // デフォルト水色
+
+          if (selected !== null) {
+            if (isCorrect) background = "#4caf50"; // 正解 緑
+            else if (isSelected) background = "#f44336"; // 間違い 赤
+          }
+
+          return (
+            <button
+              key={opt}
+              onClick={() => selectAnswer(opt)}
+              style={{
+                padding: "20px 10px",
+                fontSize: 18,
+                fontWeight: "bold",
+                color: "white",
+                background,
+                border: "none",
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              {opt}億円
+            </button>
+          );
+        })}
       </div>
 
-      <button onClick={checkAnswer} style={{ fontSize: 18, padding: 12, marginRight: 8 }}>
-        答える
-      </button>
+      <p style={{ marginTop: 20, fontSize: 18 }}>{result}</p>
 
-      <button onClick={nextQuestion} style={{ fontSize: 18, padding: 12 }}>
+      <button
+        onClick={nextQuestion}
+        style={{
+          marginTop: 20,
+          padding: 12,
+          fontSize: 16,
+        }}
+      >
         次へ
       </button>
 
-      <p style={{ marginTop: 24, fontSize: 18 }}>
-        {result}
-      </p>
-
-      <p style={{ marginTop: 40, color: "#888" }}>
-        固定レート：1ドル=150円 / 1ユーロ=165円
+      <p style={{ marginTop: 30, color: "#888" }}>
+        固定レート：1ドル=150円
       </p>
     </main>
   );
