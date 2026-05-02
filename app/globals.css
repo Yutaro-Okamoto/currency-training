@@ -1,14 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07111f;
+  --foreground: #eef6ff;
+  --font-ui: "Aptos", "Segoe UI Variable", "Segoe UI", "Yu Gothic UI", "Hiragino Sans", Meiryo, sans-serif;
+  --font-display: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", "Yu Gothic UI", sans-serif;
+  --panel: rgba(9, 20, 36, 0.78);
+  --panel-strong: rgba(12, 26, 46, 0.9);
+  --line: rgba(148, 163, 184, 0.22);
+  --muted: #9db2c8;
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --success: #22c55e;
+  --gold: #facc15;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: var(--font-ui);
   --font-mono: "Courier New", Courier, monospace;
 }
 
@@ -22,5 +32,226 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-ui);
+  font-feature-settings:
+    "palt" 1,
+    "tnum" 1;
+  text-rendering: geometricPrecision;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 78%);
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.35);
+  color: #f8fafc;
+}
+
+button {
+  font-family: inherit;
+}
+
+strong {
+  color: #f8fafc;
+  font-weight: 950;
+}
+
+.laurel-frame {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.laurel-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(250, 204, 21, 0.22), transparent 28%),
+    radial-gradient(circle at 10% 50%, rgba(234, 179, 8, 0.16), transparent 24%),
+    radial-gradient(circle at 90% 50%, rgba(234, 179, 8, 0.16), transparent 24%);
+  animation: laurel-ambient 3.2s ease-in-out infinite;
+}
+
+.laurel-branch {
+  position: absolute;
+  top: 7vh;
+  bottom: 7vh;
+  width: 108px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  opacity: 1;
+}
+
+.laurel-branch-left {
+  left: max(10px, calc((100vw - 900px) / 2 - 90px));
+}
+
+.laurel-branch-right {
+  right: max(10px, calc((100vw - 900px) / 2 - 90px));
+}
+
+.laurel-top {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  width: min(620px, 72vw);
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: space-between;
+  opacity: 0.78;
+}
+
+.laurel-leaf {
+  --leaf-transform: rotate(-28deg);
+  width: 54px;
+  height: 23px;
+  border-radius: 100% 0 100% 0;
+  background:
+    linear-gradient(135deg, #fff7ad 0%, #facc15 42%, #b7791f 100%);
+  box-shadow:
+    0 0 28px rgba(250, 204, 21, 0.48),
+    inset 3px 3px 7px rgba(255, 255, 255, 0.24);
+  transform-origin: 8px 50%;
+  transform: var(--leaf-transform);
+  animation: laurel-sway 2.8s ease-in-out infinite;
+}
+
+.laurel-branch-left .laurel-leaf {
+  align-self: flex-end;
+  --leaf-transform: rotate(-28deg);
+}
+
+.laurel-branch-right .laurel-leaf {
+  align-self: flex-start;
+  --leaf-transform: scaleX(-1) rotate(-28deg);
+}
+
+.laurel-leaf-top {
+  width: 42px;
+  height: 18px;
+  --leaf-transform: rotate(38deg);
+  animation-name: laurel-glow;
+}
+
+.confetti-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  width: 9px;
+  height: 18px;
+  border-radius: 2px;
+  background: #facc15;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.42);
+  transform: translate3d(-50%, 0, 0) rotate(0deg);
+  animation: confetti-burst 2.2s cubic-bezier(0.17, 0.67, 0.28, 1) infinite;
+}
+
+.confetti-piece:nth-child(3n) {
+  background: #38bdf8;
+}
+
+.confetti-piece:nth-child(4n) {
+  background: #fb7185;
+}
+
+.confetti-piece:nth-child(5n) {
+  background: #4ade80;
+}
+
+@keyframes laurel-ambient {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes confetti-burst {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scale(0.4) rotate(0deg);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translate3d(-50%, -24px, 0) scale(1) rotate(40deg);
+  }
+
+  64% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--burst-x)), var(--burst-y), 0) scale(1) rotate(var(--burst-r));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--burst-x)), calc(var(--burst-y) + 120px), 0) scale(0.75) rotate(calc(var(--burst-r) + 160deg));
+  }
+}
+
+@keyframes laurel-sway {
+  0%,
+  100% {
+    transform: var(--leaf-transform) translateY(0) scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    transform: var(--leaf-transform) translateY(-5px) scale(1.04);
+    filter: brightness(1.22);
+  }
+}
+
+@keyframes laurel-glow {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: var(--leaf-transform) translateY(0) scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: var(--leaf-transform) translateY(4px) scale(1.08);
+    filter: brightness(1.28);
+  }
+}
+
+@media (max-width: 760px) {
+  .laurel-branch {
+    width: 42px;
+    opacity: 0.46;
+  }
+
+  .laurel-leaf {
+    width: 28px;
+    height: 12px;
+  }
+
+  .laurel-top {
+    width: 82vw;
+    opacity: 0.42;
+  }
 }

@@ -8,6 +8,10 @@ type BusinessLevel = "basic" | "advanced";
 type Currency = "JPY" | "USD" | "EUR";
 type CurrencyLabelStyle = "default" | "answerCurrency";
 type PopupPosition = "origin" | "center" | "right";
+type CurrencyFilters = {
+  USD: boolean;
+  EUR: boolean;
+};
 
 type Rates = {
   USD: number;
@@ -49,6 +53,9 @@ type SessionAnswer = {
   correctLabel: string;
   selectedLabel: string;
   isCorrect: boolean;
+  mode: Mode;
+  answerCurrency?: Currency;
+  deltaRatio: number;
 };
 
 type UnitScale = {
@@ -385,8 +392,13 @@ function targetCurrencyFor(source: Currency): Currency {
   return "JPY";
 }
 
-function targetCurrencyForBusinessCase(source: Currency, level: BusinessLevel): Currency {
+function activeForeignCurrencies(filters: CurrencyFilters) {
+  return (["USD", "EUR"] as const).filter((currency) => filters[currency]);
+}
+
+function targetCurrencyForBusinessCase(source: Currency, level: BusinessLevel, filters: CurrencyFilters): Currency {
   if (level === "basic") return "JPY";
+  if (source === "JPY") return randomFrom(activeForeignCurrencies(filters));
   return targetCurrencyFor(source);
 }
 
@@ -439,10 +451,13 @@ function generateUnitOptions(correct: UnitScale, target: "ja" | "en") {
   }));
 }
 
-function generateBusinessQuestion(rates: Rates, level: BusinessLevel): Question {
-  const cases = level === "basic" ? BUSINESS_CASES.filter((businessCase) => businessCase.currency !== "JPY") : BUSINESS_CASES;
+function generateBusinessQuestion(rates: Rates, level: BusinessLevel, filters: CurrencyFilters): Question {
+  const cases =
+    level === "basic"
+      ? BUSINESS_CASES.filter((businessCase) => businessCase.currency !== "JPY" && filters[businessCase.currency])
+      : BUSINESS_CASES.filter((businessCase) => businessCase.currency === "JPY" || filters[businessCase.currency]);
   const businessCase = randomFrom(cases);
-  const answerCurrency = targetCurrencyForBusinessCase(businessCase.currency, level);
+  const answerCurrency = targetCurrencyForBusinessCase(businessCase.currency, level, filters);
   const correct = roundNice(convertAmount(businessCase.amount, businessCase.currency, answerCurrency, rates));
   const advanced = level === "advanced";
   const optionStyle: CurrencyLabelStyle = advanced ? "answerCurrency" : "default";
@@ -484,8 +499,12 @@ function generateBusinessQuestion(rates: Rates, level: BusinessLevel): Question 
   };
 }
 
-function generateDailyQuestion(rates: Rates): Question {
-  const type = randomFrom(["USD_TO_JPY", "EUR_TO_JPY", "JPY_TO_USD", "JPY_TO_EUR"]);
+function generateDailyQuestion(rates: Rates, filters: CurrencyFilters): Question {
+  const types = [
+    ...(filters.USD ? ["USD_TO_JPY", "JPY_TO_USD"] : []),
+    ...(filters.EUR ? ["EUR_TO_JPY", "JPY_TO_EUR"] : []),
+  ];
+  const type = randomFrom(types);
 
   if (type === "JPY_TO_USD") {
     const yen = randomFrom([100, 300, 500, 1000, 3000, 5000, 10000, 30000, 50000, 100000, 300000, 500000]);
@@ -559,10 +578,10 @@ function generateUnitQuestion(): Question {
   };
 }
 
-function generateQuestion(rates: Rates, mode: Mode, businessLevel: BusinessLevel = "basic"): Question {
-  if (mode === "business") return generateBusinessQuestion(rates, businessLevel);
+function generateQuestion(rates: Rates, mode: Mode, businessLevel: BusinessLevel = "basic", filters: CurrencyFilters = { USD: true, EUR: true }): Question {
+  if (mode === "business") return generateBusinessQuestion(rates, businessLevel, filters);
   if (mode === "training") return generateUnitQuestion();
-  return generateDailyQuestion(rates);
+  return generateDailyQuestion(rates, filters);
 }
 
 function getMilestoneMessage(streak: number, lang: Lang) {
@@ -576,65 +595,61 @@ function getMilestoneMessage(streak: number, lang: Lang) {
   return "";
 }
 
-function generateAnalysisComments(answers: SessionAnswer[], lang: Lang) {
+function generateAnalysisComment(answers: SessionAnswer[], lang: Lang) {
   const wrongAnswers = answers.filter((answer) => !answer.isCorrect);
+  const accuracy = answers.length === 0 ? 0 : Math.round(((answers.length - wrongAnswers.length) / answers.length) * 100);
 
   if (wrongAnswers.length === 0) {
-    return [lang === "ja" ? "全問を安定して処理できています。桁感と通貨換算の切り替えがかなり良い状態です。" : "You handled every question cleanly. Your scale sense and currency switching are in great shape."];
+    return lang === "ja" ? "全問を安定して処理できています。桁感と通貨換算の切り替えがかなり良い状態です。" : "You handled every question cleanly. Your scale sense and currency switching are in great shape.";
   }
 
   const text = wrongAnswers.map((answer) => `${answer.prompt} ${answer.correctLabel} ${answer.selectedLabel}`).join(" ").toLowerCase();
-  const comments: string[] = [];
+  const avgDelta = wrongAnswers.reduce((sum, answer) => sum + answer.deltaRatio, 0) / wrongAnswers.length;
+  const usdMisses = wrongAnswers.filter((answer) => answer.answerCurrency === "USD" || answer.prompt.includes("$") || answer.prompt.includes("ドル")).length;
+  const eurMisses = wrongAnswers.filter((answer) => answer.answerCurrency === "EUR" || answer.prompt.includes("€") || answer.prompt.includes("ユーロ")).length;
+  const jpyMisses = wrongAnswers.filter((answer) => answer.answerCurrency === "JPY" || answer.prompt.includes("円")).length;
+  const unitMisses = wrongAnswers.filter((answer) => answer.mode === "training").length;
 
-  if (text.includes("billion") || text.includes("10億") || text.includes("億")) {
-    comments.push(
-      lang === "ja"
-        ? "billion や億のスケールで迷いが出ています。1 billion = 10億を起点にすると、大型投資の金額感をつかみやすくなります。"
-        : "Billion-level scale looks like a weak spot. Anchor on 1 billion = 10億 to read large investment amounts faster.",
-    );
-  }
+  const candidates = [
+    {
+      score: unitMisses * 4 + (text.includes("billion") || text.includes("10億") ? 3 : 0),
+      ja: "単位そのものの変換で少し負荷が出ています。特に billion / 10億の対応を最初に固定すると、その後の金額換算もかなり楽になります。",
+      en: "The unit conversion itself is adding friction. Locking in billion / 10億 first should make the later currency conversion much easier.",
+    },
+    {
+      score: unitMisses * 4 + (text.includes("million") || text.includes("100万") ? 3 : 0),
+      ja: "million 周辺で少し揺れています。1 million = 100万を起点に、10 million、100 million と一段ずつ広げる練習が効きそうです。",
+      en: "Million-level scale is wobbling a bit. Start from 1 million = 100万, then step up to 10 million and 100 million.",
+    },
+    {
+      score: usdMisses * 2 + (jpyMisses > 0 ? 1 : 0),
+      ja: "ドルと円の行き来でミスが出ています。ドル額を million / billion で読んでから円に直す、という順番にすると安定しやすいです。",
+      en: "USD/JPY switching is causing misses. Read the dollar amount in million/billion first, then convert to yen.",
+    },
+    {
+      score: eurMisses * 2 + (jpyMisses > 0 ? 1 : 0),
+      ja: "ユーロ建ての金額でつまずきがあります。ドルと同じ単位感で読んだあと、レート差を最後に乗せる意識が合いそうです。",
+      en: "Euro-denominated amounts are tripping you up. Read the unit scale like USD first, then apply the rate difference at the end.",
+    },
+    {
+      score: avgDelta > 4 ? 5 : 0,
+      ja: "誤答が正解からかなり大きく離れています。計算ミスというより、桁を一段読み違えている可能性が高そうです。",
+      en: "Your misses are far from the correct answers. This looks more like a scale shift than a small calculation error.",
+    },
+    {
+      score: accuracy >= 70 ? 4 : 0,
+      ja: "全体の正答率は悪くありません。細かい計算力より、通貨ごとの代表的な単位を一瞬で読む練習を足すと伸びそうです。",
+      en: "Your overall accuracy is solid. The next gain is reading each currency's common units faster, not doing more arithmetic.",
+    },
+  ];
 
-  if (text.includes("million") || text.includes("100万") || text.includes("百万")) {
-    comments.push(
-      lang === "ja"
-        ? "million 周辺の単位変換で取りこぼしがあります。1 million = 100万をまず固定して、10 million、100 millionへ広げると安定します。"
-        : "Million-level conversion is causing misses. Fix 1 million = 100万 first, then extend to 10 million and 100 million.",
-    );
-  }
+  const best = candidates.sort((a, b) => b.score - a.score)[0];
 
-  if (text.includes("trillion") || text.includes("兆")) {
-    comments.push(
-      lang === "ja"
-        ? "trillion や兆のような超大型の単位で負荷が上がっています。1 trillion = 1兆を基準にして読む練習が効きそうです。"
-        : "Trillion-level amounts are adding friction. Use 1 trillion = 1兆 as the main anchor.",
-    );
-  }
+  if (best.score > 0) return lang === "ja" ? best.ja : best.en;
 
-  if (text.includes("ドル") || text.includes("dollar") || text.includes("$")) {
-    comments.push(
-      lang === "ja"
-        ? "ドル建て金額を円に直す問題でミスが含まれています。まずドル額を billion / million で読んでから、ざっくり円換算する順番がよさそうです。"
-        : "There are misses on dollar-denominated amounts. Read the USD amount in billion/million first, then convert roughly to yen.",
-    );
-  }
-
-  if (text.includes("ユーロ") || text.includes("euro") || text.includes("€")) {
-    comments.push(
-      lang === "ja"
-        ? "ユーロ建ての問題で少しつまずきがあります。ドルと同じ billion / million の読み方でそろえてから、レート差を見ると整理しやすいです。"
-        : "Euro-denominated questions caused some misses. Treat the unit reading like USD first, then account for the rate difference.",
-    );
-  }
-
-  if (comments.length === 0) {
-    comments.push(
-      lang === "ja"
-        ? "特定の単位に偏った弱点というより、問題ごとの換算方向の切り替えでミスが出ています。問題文の通貨と、回答する通貨を最初に確認すると安定します。"
-        : "The misses are less about one unit and more about switching conversion direction. First identify the source currency and answer currency.",
-    );
-  }
-
-  return comments.slice(0, 3);
+  return lang === "ja"
+    ? "今回は特定の単位に偏った弱点というより、問題ごとの換算方向の切り替えでミスが出ています。問題文の通貨と回答する通貨を先に確認すると安定します。"
+    : "The misses are less about one unit and more about switching conversion direction. First identify the source currency and answer currency.";
 }
 
 export default function Home() {
@@ -643,6 +658,7 @@ export default function Home() {
   const [businessLevel, setBusinessLevel] = useState<BusinessLevel | null>(null);
   const [rates, setRates] = useState<Rates | null>(null);
   const [rateDate, setRateDate] = useState("");
+  const [currencyFilters, setCurrencyFilters] = useState<CurrencyFilters>({ USD: true, EUR: true });
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState("");
@@ -719,13 +735,15 @@ export default function Home() {
       loading: "Loading...",
       switch: "English",
       caseLabel: "ビジネス事例",
+      usdLabel: "ドル",
+      eurLabel: "ユーロ",
       progressLabel: "今日のウォームアップ",
       resultsTitle: "結果",
       correctAnswers: "正解数",
       wrongAnswers: "不正解数",
       weakQuestions: "AI分析コメント",
       noWeakQuestions: "今回の回答には大きな弱点は見つかりませんでした",
-      restart: "もう一度10問",
+      restart: "再トライ",
       showResults: "結果を表示する",
       finish: "モード選択に戻る",
     },
@@ -757,13 +775,15 @@ export default function Home() {
       loading: "Loading...",
       switch: "日本語",
       caseLabel: "Business case",
+      usdLabel: "USD",
+      eurLabel: "EUR",
       progressLabel: "Warm-up progress",
       resultsTitle: "Results",
       correctAnswers: "Correct",
       wrongAnswers: "Wrong",
       weakQuestions: "AI-style analysis",
       noWeakQuestions: "No major weak spot found in this session",
-      restart: "Another 10 questions",
+      restart: "Retry",
       showResults: "Show results",
       finish: "Back to mode select",
     },
@@ -788,7 +808,7 @@ export default function Home() {
   }
 
   function selectAnswer(value: number, originElement: HTMLButtonElement) {
-    if (!question || selected !== null) return;
+    if (!question || selected !== null || !mode) return;
 
     const isCorrect = value === question.correct;
     const nextTotalCount = totalCount + 1;
@@ -799,6 +819,9 @@ export default function Home() {
       correctLabel: formatCorrectAnswer(question, lang),
       selectedLabel: selectedOption ? (lang === "ja" ? selectedOption.labelJa : selectedOption.labelEn) : String(value),
       isCorrect,
+      mode,
+      answerCurrency: question.answerCurrency,
+      deltaRatio: question.correct === 0 ? 0 : Math.abs(value - question.correct) / question.correct,
     };
 
     setSelected(value);
@@ -827,7 +850,7 @@ export default function Home() {
 
   function next() {
     if (!rates || !mode) return;
-    setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic"));
+    setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", currencyFilters));
     setSelected(null);
     setResult("");
     setShowResultPopup(false);
@@ -854,7 +877,7 @@ export default function Home() {
 
   function resetSession() {
     if (rates && mode) {
-      setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic"));
+      setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", currencyFilters));
     }
 
     setSelected(null);
@@ -869,6 +892,30 @@ export default function Home() {
     setPopupPosition("origin");
     setSessionAnswers([]);
     setSessionComplete(false);
+  }
+
+  function toggleCurrencyFilter(currency: "USD" | "EUR") {
+    const other = currency === "USD" ? "EUR" : "USD";
+    const nextFilters = {
+      ...currencyFilters,
+      [currency]: !currencyFilters[currency],
+    };
+
+    if (!nextFilters[currency] && !nextFilters[other]) {
+      nextFilters[other] = true;
+    }
+
+    setCurrencyFilters(nextFilters);
+
+    if (rates && (mode === "business" || mode === "daily") && !sessionComplete) {
+      setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", nextFilters));
+      setSelected(null);
+      setResult("");
+      setShowResultPopup(false);
+      setResultPopupExiting(false);
+      setPopupPosition("origin");
+      setAchievement("");
+    }
   }
 
   function chooseMode(nextMode: Mode) {
@@ -892,7 +939,7 @@ export default function Home() {
     }
 
     if (rates) {
-      setQuestion(generateQuestion(rates, nextMode));
+      setQuestion(generateQuestion(rates, nextMode, "basic", currencyFilters));
       setSelected(null);
       setResult("");
       setCorrectCount(0);
@@ -913,7 +960,7 @@ export default function Home() {
 
   function chooseBusinessLevel(nextLevel: BusinessLevel) {
     if (rates) {
-      setQuestion(generateQuestion(rates, "business", nextLevel));
+      setQuestion(generateQuestion(rates, "business", nextLevel, currencyFilters));
       setSelected(null);
       setResult("");
       setCorrectCount(0);
@@ -935,21 +982,22 @@ export default function Home() {
     return (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div>
-          <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 700, letterSpacing: 0 }}>Currency Sense</p>
-          <h1 style={{ margin: "6px 0 0", fontSize: 30 }}>{t.appTitle}</h1>
+          <p style={{ margin: 0, color: "var(--accent)", fontSize: 12, fontWeight: 850, letterSpacing: 0, textTransform: "uppercase" }}>Currency Sense</p>
+          <h1 style={{ margin: "6px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 800, letterSpacing: 0 }}>{t.appTitle}</h1>
         </div>
 
         <button
           onClick={() => setLang(lang === "ja" ? "en" : "ja")}
           style={{
-            background: "#f8fafc",
-            color: "#020617",
+            background: "linear-gradient(180deg, #f8fafc, #dbeafe)",
+            color: "#06111f",
             fontWeight: "bold",
             padding: "12px 16px",
             borderRadius: 8,
-            border: "none",
+            border: "1px solid rgba(255, 255, 255, 0.5)",
             cursor: "pointer",
             minWidth: 96,
+            boxShadow: "0 14px 36px rgba(2, 132, 199, 0.18)",
           }}
         >
           {t.switch}
@@ -967,14 +1015,14 @@ export default function Home() {
           marginTop: 14,
           padding: 22,
           borderRadius: 8,
-          border: "1px solid rgba(148, 163, 184, 0.28)",
-          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.95), rgba(14, 165, 233, 0.82))",
+          border: "1px solid rgba(125, 211, 252, 0.28)",
+          background: "linear-gradient(135deg, rgba(14, 116, 144, 0.96), rgba(37, 99, 235, 0.88))",
           color: "white",
           fontWeight: "bold",
           fontSize: 20,
           cursor: "pointer",
           textAlign: "left",
-          boxShadow: "0 18px 44px rgba(2, 132, 199, 0.18)",
+          boxShadow: "0 18px 44px rgba(8, 47, 73, 0.32)",
         }}
       >
         {title}
@@ -989,12 +1037,47 @@ export default function Home() {
         style={{
           padding: "12px 14px",
           borderRadius: 8,
-          background: "rgba(15, 23, 42, 0.78)",
-          border: "1px solid rgba(148, 163, 184, 0.18)",
+          background: "linear-gradient(180deg, rgba(15, 34, 58, 0.86), rgba(8, 18, 32, 0.82))",
+          border: "1px solid var(--line)",
         }}
       >
-        <p style={{ margin: 0, color: "#94a3b8", fontSize: 12, fontWeight: 700 }}>{label}</p>
+        <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 750 }}>{label}</p>
         <p style={{ margin: "6px 0 0", fontSize: 20, fontWeight: 800 }}>{value}</p>
+      </div>
+    );
+  }
+
+  function renderCurrencyFilterControls() {
+    if (mode !== "business" && mode !== "daily") return null;
+
+    return (
+      <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+        {(["USD", "EUR"] as const).map((currency) => {
+          const active = currencyFilters[currency];
+          const label = currency === "USD" ? t.usdLabel : t.eurLabel;
+
+          return (
+            <button
+              key={currency}
+              type="button"
+              aria-pressed={active}
+              onClick={() => toggleCurrencyFilter(currency)}
+              style={{
+                minWidth: 78,
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: active ? "1px solid rgba(125, 211, 252, 0.55)" : "1px solid rgba(148, 163, 184, 0.22)",
+                background: active ? "linear-gradient(135deg, rgba(8, 145, 178, 0.92), rgba(34, 197, 94, 0.72))" : "rgba(8, 18, 32, 0.78)",
+                color: active ? "#f8fafc" : "#94a3b8",
+                fontWeight: 900,
+                cursor: "pointer",
+                boxShadow: active ? "0 12px 28px rgba(14, 165, 233, 0.18)" : "none",
+              }}
+            >
+              {currency === "USD" ? "$" : "€"} {label}
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -1002,7 +1085,8 @@ export default function Home() {
   const pageShellStyle = {
     minHeight: "100vh",
     padding: "32px 20px",
-    background: "radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.28), transparent 34%), #05070c",
+    background:
+      "linear-gradient(135deg, rgba(12, 74, 110, 0.28) 0%, transparent 34%), radial-gradient(circle at 88% 12%, rgba(34, 197, 94, 0.13), transparent 30%), linear-gradient(180deg, #06111f 0%, #081523 52%, #04070d 100%)",
     color: "#f8fafc",
   };
 
@@ -1010,6 +1094,8 @@ export default function Home() {
     width: "100%",
     maxWidth: 760,
     margin: "0 auto",
+    position: "relative" as const,
+    zIndex: 1,
   };
 
   if (!rates) {
@@ -1028,8 +1114,8 @@ export default function Home() {
               padding: 22,
               borderRadius: 8,
               border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "rgba(15, 23, 42, 0.68)",
-              boxShadow: "0 24px 80px rgba(0, 0, 0, 0.28)",
+              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.88), rgba(6, 17, 31, 0.78))",
+              boxShadow: "0 28px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.06)",
             }}
           >
             <h2 style={{ margin: 0, fontSize: 22 }}>{t.chooseMode}</h2>
@@ -1061,8 +1147,8 @@ export default function Home() {
               padding: 22,
               borderRadius: 8,
               border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "rgba(15, 23, 42, 0.68)",
-              boxShadow: "0 24px 80px rgba(0, 0, 0, 0.28)",
+              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.88), rgba(6, 17, 31, 0.78))",
+              boxShadow: "0 28px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.06)",
             }}
           >
             <h2 style={{ margin: 0, fontSize: 22 }}>{t.chooseBusinessLevel}</h2>
@@ -1090,10 +1176,41 @@ export default function Home() {
   }
 
   if (sessionComplete) {
-    const analysisComments = generateAnalysisComments(sessionAnswers, lang);
+    const analysisComment = generateAnalysisComment(sessionAnswers, lang);
 
     return (
       <main style={pageShellStyle}>
+        <div className="laurel-frame" aria-hidden="true">
+          <div className="confetti-field">
+            {Array.from({ length: 36 }).map((_, index) => (
+              <span
+                key={`confetti-${index}`}
+                className="confetti-piece"
+                style={{
+                  animationDelay: `${index * 0.025}s`,
+                  ["--burst-x" as string]: `${(index % 2 === 0 ? 1 : -1) * (80 + (index % 9) * 34)}px`,
+                  ["--burst-y" as string]: `${-210 - (index % 7) * 42}px`,
+                  ["--burst-r" as string]: `${(index % 11) * 37}deg`,
+                }}
+              />
+            ))}
+          </div>
+          <div className="laurel-branch laurel-branch-left">
+            {Array.from({ length: 24 }).map((_, index) => (
+              <span key={`left-${index}`} className="laurel-leaf" style={{ animationDelay: `${index * 0.08}s` }} />
+            ))}
+          </div>
+          <div className="laurel-branch laurel-branch-right">
+            {Array.from({ length: 24 }).map((_, index) => (
+              <span key={`right-${index}`} className="laurel-leaf" style={{ animationDelay: `${index * 0.08}s` }} />
+            ))}
+          </div>
+          <div className="laurel-top">
+            {Array.from({ length: 22 }).map((_, index) => (
+              <span key={`top-${index}`} className="laurel-leaf laurel-leaf-top" style={{ animationDelay: `${index * 0.06}s` }} />
+            ))}
+          </div>
+        </div>
         <div style={contentStyle}>
           {renderHeader()}
 
@@ -1103,8 +1220,8 @@ export default function Home() {
               padding: 24,
               borderRadius: 8,
               border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "rgba(15, 23, 42, 0.74)",
-              boxShadow: "0 24px 80px rgba(0, 0, 0, 0.28)",
+              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.9), rgba(6, 17, 31, 0.82))",
+              boxShadow: "0 30px 100px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.07)",
             }}
           >
             <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 800 }}>{t.progressLabel}</p>
@@ -1128,25 +1245,17 @@ export default function Home() {
             >
               <h3 style={{ margin: 0, fontSize: 20 }}>{t.weakQuestions}</h3>
 
-              {analysisComments.length > 0 ? (
-                <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-                  {analysisComments.map((comment) => (
-                    <div
-                      key={comment}
-                      style={{
-                        padding: 14,
-                        borderRadius: 8,
-                        border: "1px solid rgba(125, 211, 252, 0.28)",
-                        background: "rgba(14, 165, 233, 0.12)",
-                      }}
-                    >
-                      <p style={{ margin: 0, fontWeight: 850, lineHeight: 1.6 }}>{comment}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ margin: "14px 0 0", color: "#94a3b8" }}>{t.noWeakQuestions}</p>
-              )}
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 8,
+                  border: "1px solid rgba(125, 211, 252, 0.28)",
+                  background: "linear-gradient(180deg, rgba(14, 165, 233, 0.14), rgba(8, 47, 73, 0.16))",
+                }}
+              >
+                <p style={{ margin: 0, fontWeight: 850, lineHeight: 1.6 }}>{analysisComment || t.noWeakQuestions}</p>
+              </div>
             </section>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22 }}>
@@ -1156,8 +1265,8 @@ export default function Home() {
                   padding: "13px 18px",
                   borderRadius: 8,
                   border: "none",
-                  background: "#f8fafc",
-                  color: "#020617",
+                  background: "linear-gradient(180deg, #f8fafc, #dbeafe)",
+                  color: "#06111f",
                   fontWeight: 900,
                   cursor: "pointer",
                 }}
@@ -1175,7 +1284,7 @@ export default function Home() {
                   padding: "13px 18px",
                   borderRadius: 8,
                   border: "1px solid rgba(148, 163, 184, 0.28)",
-                  background: "rgba(15, 23, 42, 0.72)",
+                  background: "rgba(8, 18, 32, 0.78)",
                   color: "#e2e8f0",
                   fontWeight: 800,
                   cursor: "pointer",
@@ -1206,34 +1315,23 @@ export default function Home() {
       <div style={contentStyle}>
         {renderHeader()}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 22, color: "#bae6fd", fontWeight: 800 }}>
-          <span
-            style={{
-              display: "inline-flex",
-              padding: "6px 10px",
-              borderRadius: 8,
-              background: "rgba(14, 165, 233, 0.16)",
-              border: "1px solid rgba(125, 211, 252, 0.22)",
-            }}
-          >
-            {modeTitle}
-          </span>
-          {businessLevel ? <span style={{ color: "#94a3b8" }}>{businessLevel === "basic" ? t.basicTitle : t.advancedTitle}</span> : null}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 22, color: "#bae6fd", fontWeight: 800, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                padding: "6px 10px",
+                borderRadius: 8,
+                background: "rgba(14, 165, 233, 0.16)",
+                border: "1px solid rgba(125, 211, 252, 0.22)",
+              }}
+            >
+              {modeTitle}
+            </span>
+            {businessLevel ? <span style={{ color: "#94a3b8" }}>{businessLevel === "basic" ? t.basicTitle : t.advancedTitle}</span> : null}
+          </div>
+          {renderCurrencyFilterControls()}
         </div>
-
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-            gap: 12,
-            marginTop: 18,
-          }}
-        >
-          {renderStatCard(t.score, `${correctCount}/${totalCount} (${accuracy}%)`)}
-          {renderStatCard(t.streak, `${streak}`)}
-          {renderStatCard(t.bestStreak, `${bestStreak}`)}
-          {renderStatCard(t.questionsDone, `${totalCount}`)}
-        </section>
 
         <section
           style={{
@@ -1241,8 +1339,8 @@ export default function Home() {
             padding: 20,
             borderRadius: 8,
             border: "1px solid rgba(148, 163, 184, 0.18)",
-            background: "rgba(15, 23, 42, 0.72)",
-            boxShadow: "0 24px 80px rgba(0, 0, 0, 0.26)",
+            background: "linear-gradient(180deg, rgba(13, 31, 54, 0.88), rgba(6, 17, 31, 0.8))",
+            boxShadow: "0 30px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.06)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, color: "#94a3b8", fontSize: 13, fontWeight: 800 }}>
@@ -1268,7 +1366,7 @@ export default function Home() {
             </section>
           ) : null}
 
-          <p style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.35, margin: "24px 0 0" }}>
+          <p style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 850, lineHeight: 1.35, letterSpacing: 0, margin: "24px 0 0" }}>
             {lang === "ja" ? question.textJa : question.textEn}
           </p>
 
@@ -1281,15 +1379,15 @@ export default function Home() {
             }}
           >
             {question.options.map((opt) => {
-              let bg = "linear-gradient(135deg, #3b82f6, #0ea5e9)";
-              let border = "1px solid rgba(125, 211, 252, 0.18)";
+              let bg = "linear-gradient(135deg, #2563eb, #0891b2)";
+              let border = "1px solid rgba(125, 211, 252, 0.24)";
 
               if (selected !== null) {
                 if (opt.value === question.correct) {
-                  bg = "linear-gradient(135deg, #16a34a, #22c55e)";
+                  bg = "linear-gradient(135deg, #15803d, #22c55e)";
                   border = "1px solid rgba(134, 239, 172, 0.34)";
                 } else if (opt.value === selected) {
-                  bg = "linear-gradient(135deg, #dc2626, #f97316)";
+                  bg = "linear-gradient(135deg, #b91c1c, #ea580c)";
                   border = "1px solid rgba(253, 186, 116, 0.34)";
                 }
               }
@@ -1308,7 +1406,7 @@ export default function Home() {
                     border,
                     borderRadius: 8,
                     cursor: selected === null ? "pointer" : "default",
-                    boxShadow: "0 16px 38px rgba(2, 132, 199, 0.16)",
+                    boxShadow: "0 18px 42px rgba(2, 132, 199, 0.18), inset 0 1px 0 rgba(255,255,255,0.16)",
                   }}
                 >
                   {lang === "ja" ? opt.labelJa : opt.labelEn}
@@ -1318,23 +1416,6 @@ export default function Home() {
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
-            {selected === null ? (
-              <button
-                onClick={next}
-                style={{
-                  padding: "13px 18px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#f8fafc",
-                  color: "#020617",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                }}
-              >
-                {t.next}
-              </button>
-            ) : null}
-
             <button
               onClick={() => {
                 if (mode === "business") {
@@ -1366,7 +1447,7 @@ export default function Home() {
               }}
             >
               {backLabel}
-            </button>
+              </button>
           </div>
         </section>
 
@@ -1425,7 +1506,7 @@ export default function Home() {
                 gap: 18,
               }}
             >
-              <p style={{ margin: 0, color: "white", fontSize: isMilestonePopup ? 28 : 30, fontWeight: 950, lineHeight: 1.25, whiteSpace: "pre-line" }}>
+              <p style={{ margin: 0, color: "white", fontFamily: "var(--font-display)", fontSize: isMilestonePopup ? 28 : 30, fontWeight: 900, lineHeight: 1.25, whiteSpace: "pre-line" }}>
                 {result}
               </p>
               <button
