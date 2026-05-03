@@ -2293,22 +2293,6 @@ export default function Home() {
               </button>
 
               <button
-                onClick={() => setShowReferenceTable(true)}
-                style={{
-                  padding: "13px 18px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(250, 204, 21, 0.32)",
-                  background: "linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(14, 165, 233, 0.14))",
-                  color: "#fef3c7",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  boxShadow: "0 14px 34px rgba(250, 204, 21, 0.12)",
-                }}
-              >
-                {t.referenceButton}
-              </button>
-
-              <button
                 onClick={() => {
                   returnToHome(mode === "business" ? "business" : "training");
                 }}
