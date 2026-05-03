@@ -1477,7 +1477,7 @@ export default function Home() {
         }}
       >
         <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.72fr) minmax(260px, 1.45fr)", gap: 14, alignItems: "center" }}>
-          <div>
+          <div style={{ maxWidth: 420 }}>
             <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
             <p style={{ margin: "5px 0 0", fontFamily: "var(--font-display)", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>
               {dailyScore}
