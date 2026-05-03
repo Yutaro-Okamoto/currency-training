@@ -1400,33 +1400,49 @@ export default function Home() {
     return (
       <div style={{ marginTop: 12 }}>
         <p style={{ margin: "0 0 12px", color: "#d6e4f5", fontSize: 14, fontWeight: 900 }}>{step}</p>
-        <button
-          onClick={onClick}
-          style={{
-            width: "100%",
-            minHeight: 112,
-            padding: 18,
-            borderRadius: 8,
-            border: "1px solid rgba(255, 255, 255, 0.18)",
-            background:
-              "linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, transparent 22%), radial-gradient(circle at 88% 16%, rgba(250, 204, 21, 0.18), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.94), rgba(37, 99, 235, 0.84))",
-            color: "white",
-            fontWeight: "bold",
-            fontSize: 26,
-            cursor: "pointer",
-            textAlign: "left",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            transform: "perspective(900px) rotateX(2deg)",
-            boxShadow:
-              "0 22px 0 rgba(2, 6, 23, 0.42), 0 34px 70px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 34px rgba(2, 6, 23, 0.18)",
-          }}
-        >
-          {title}
-          <div style={{ color: "rgba(255, 255, 255, 0.86)", fontSize: 14, fontWeight: 750, marginTop: 8, lineHeight: 1.45, maxWidth: 520 }}>{desc}</div>
-        </button>
+        <div style={{ position: "relative", paddingBottom: 9 }}>
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              bottom: 0,
+              height: 22,
+              borderRadius: "0 0 8px 8px",
+              background: "linear-gradient(180deg, rgba(8, 47, 73, 0.95), rgba(2, 6, 23, 0.98))",
+              boxShadow: "0 18px 32px rgba(0, 0, 0, 0.42)",
+            }}
+          />
+          <button
+            onClick={onClick}
+            style={{
+              position: "relative",
+              width: "100%",
+              minHeight: 112,
+              padding: 18,
+              borderRadius: 8,
+              border: "1px solid rgba(255, 255, 255, 0.22)",
+              background:
+                "linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, transparent 24%), radial-gradient(circle at 88% 16%, rgba(250, 204, 21, 0.18), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.96), rgba(37, 99, 235, 0.86))",
+              color: "white",
+              fontWeight: "bold",
+              fontSize: 26,
+              cursor: "pointer",
+              textAlign: "left",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              transform: "translateY(-6px)",
+              boxShadow:
+                "0 8px 0 rgba(8, 47, 73, 0.92), 0 18px 32px rgba(0, 0, 0, 0.34), inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -18px 30px rgba(2, 6, 23, 0.2)",
+            }}
+          >
+            {title}
+            <div style={{ color: "rgba(255, 255, 255, 0.86)", fontSize: 14, fontWeight: 750, marginTop: 8, lineHeight: 1.45, maxWidth: 520 }}>{desc}</div>
+          </button>
+        </div>
       </div>
     );
   }
@@ -1460,7 +1476,7 @@ export default function Home() {
           boxShadow: "0 26px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.07)",
         }}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.8fr) minmax(180px, 1fr) minmax(170px, 0.9fr)", gap: 14, alignItems: "center" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.72fr) minmax(260px, 1.45fr)", gap: 14, alignItems: "center" }}>
           <div>
             <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
             <p style={{ margin: "5px 0 0", fontFamily: "var(--font-display)", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>
@@ -1469,6 +1485,23 @@ export default function Home() {
             </p>
           </div>
           <div>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "baseline",
+                gap: 8,
+                padding: "9px 12px",
+                marginBottom: 9,
+                borderRadius: 8,
+                border: "1px solid rgba(125, 211, 252, 0.24)",
+                background: "rgba(2, 6, 23, 0.4)",
+              }}
+            >
+              <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</span>
+              <span style={{ fontSize: 20, fontWeight: 950 }}>
+                Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 13 }}>{levelTitle}</span>
+              </span>
+            </div>
             <div style={{ height: 7, borderRadius: 999, background: "rgba(148, 163, 184, 0.2)", overflow: "hidden" }}>
               <div
                 style={{
@@ -1480,19 +1513,6 @@ export default function Home() {
             </div>
             <p style={{ margin: "7px 0 0", color: "#cbd5e1", fontSize: 12, fontWeight: 750 }}>
               {levelInfo.nextScore ? `${t.nextRankLabel}: ${nextRankPoints}${t.pointsUnit}` : t.maxRankLabel}
-            </p>
-          </div>
-          <div
-            style={{
-              padding: "11px 13px",
-              borderRadius: 8,
-              border: "1px solid rgba(125, 211, 252, 0.24)",
-              background: "rgba(2, 6, 23, 0.4)",
-            }}
-          >
-            <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</p>
-            <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 950 }}>
-              Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 13 }}>{levelTitle}</span>
             </p>
           </div>
         </div>
