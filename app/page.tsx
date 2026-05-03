@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -1348,7 +1348,7 @@ export default function Home() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div>
           <p style={{ margin: 0, color: "var(--accent)", fontSize: 12, fontWeight: 850, letterSpacing: 0, textTransform: "uppercase" }}>Currency Sense</p>
-          <h1 style={{ margin: "6px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 800, letterSpacing: 0 }}>{t.appTitle}</h1>
+          <h1 className="app-title" style={{ margin: "6px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 800, letterSpacing: 0 }}>{t.appTitle}</h1>
         </div>
 
         <button
@@ -1415,6 +1415,7 @@ export default function Home() {
             }}
           />
           <button
+            className="mode-card-button"
             onClick={onClick}
             style={{
               position: "relative",
@@ -1476,15 +1477,15 @@ export default function Home() {
           boxShadow: "0 26px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.07)",
         }}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.72fr) minmax(260px, 1.45fr)", gap: 14, alignItems: "center" }}>
-          <div style={{ maxWidth: 420 }}>
+        <div className="daily-score-grid" style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.72fr) minmax(260px, 1.45fr)", gap: 14, alignItems: "center" }}>
+          <div className="daily-score-main" style={{ maxWidth: 420 }}>
             <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
             <p style={{ margin: "5px 0 0", fontFamily: "var(--font-display)", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>
               {dailyScore}
               <span style={{ marginLeft: 6, fontSize: 14, color: "#cbd5e1" }}>{t.pointsUnit}</span>
             </p>
           </div>
-          <div>
+          <div className="daily-progress-block">
             <div
               style={{
                 display: "inline-flex",
@@ -1802,13 +1803,13 @@ export default function Home() {
   };
 
   if (!rates) {
-    return <main style={pageShellStyle}>{t.loading}</main>;
+    return <main className="app-shell" style={pageShellStyle}>{t.loading}</main>;
   }
 
   if (!mode && showReferenceTable) {
     return (
-      <main style={pageShellStyle}>
-        <div style={contentStyle}>
+      <main className="app-shell" style={pageShellStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
           {renderReferenceTable()}
         </div>
@@ -1818,8 +1819,8 @@ export default function Home() {
 
   if (!mode) {
     return (
-      <main style={pageShellStyle}>
-        <div style={contentStyle}>
+      <main className="app-shell" style={pageShellStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
           {renderDailyScorePanel()}
 
@@ -1872,8 +1873,8 @@ export default function Home() {
 
   if (mode === "business" && !businessLevel) {
     return (
-      <main style={pageShellStyle}>
-        <div style={contentStyle}>
+      <main className="app-shell" style={pageShellStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
 
           <section
@@ -1912,8 +1913,8 @@ export default function Home() {
 
   if (sessionComplete && showReferenceTable) {
     return (
-      <main style={pageShellStyle}>
-        <div style={contentStyle}>
+      <main className="app-shell" style={pageShellStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
           {renderReferenceTable()}
         </div>
@@ -1923,7 +1924,7 @@ export default function Home() {
 
   if (sessionComplete && didUpgradeTitle && !levelUpAcknowledged) {
     return (
-      <main style={pageShellStyle}>
+      <main className="app-shell" style={pageShellStyle}>
         <div className="laurel-frame" aria-hidden="true">
           <div className="confetti-field">
             {Array.from({ length: 44 }).map((_, index) => (
@@ -2025,7 +2026,7 @@ export default function Home() {
     const businessSpeedLabel = avgBusinessCorrectMs > 0 ? getBusinessSpeedLabel(avgBusinessCorrectMs, lang) : "";
 
     return (
-      <main style={pageShellStyle}>
+      <main className="app-shell" style={pageShellStyle}>
         <div className="laurel-frame" aria-hidden="true">
           <div className="confetti-field">
             {Array.from({ length: 36 }).map((_, index) => (
@@ -2057,7 +2058,7 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <div style={contentStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
 
           <section
@@ -2071,7 +2072,7 @@ export default function Home() {
             }}
           >
             <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 800 }}>{t.progressLabel}</p>
-            <h2 style={{ margin: "8px 0 0", fontSize: 34 }}>{t.resultsTitle}</h2>
+            <h2 className="result-title" style={{ margin: "8px 0 0", fontSize: 34 }}>{t.resultsTitle}</h2>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginTop: 22 }}>
               {renderStatCard(t.correctAnswers, `${correctCount}`)}
@@ -2215,8 +2216,8 @@ export default function Home() {
 
   if (!sessionStarted) {
     return (
-      <main style={pageShellStyle}>
-        <div style={contentStyle}>
+      <main className="app-shell" style={pageShellStyle}>
+        <div className="app-content" style={contentStyle}>
           {renderHeader()}
 
           <section
@@ -2308,8 +2309,8 @@ export default function Home() {
   const isMilestonePopup = isCorrectResult && achievement;
 
   return (
-    <main style={pageShellStyle}>
-      <div style={contentStyle}>
+    <main className="app-shell" style={pageShellStyle}>
+      <div className="app-content" style={contentStyle}>
         {renderHeader()}
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 22, color: "#bae6fd", fontWeight: 800, flexWrap: "wrap" }}>
@@ -2366,11 +2367,12 @@ export default function Home() {
             </section>
           ) : null}
 
-          <p style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 850, lineHeight: 1.35, letterSpacing: 0, margin: "24px 0 0" }}>
+          <p className="question-title" style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 850, lineHeight: 1.35, letterSpacing: 0, margin: "24px 0 0" }}>
             {lang === "ja" ? question.textJa : question.textEn}
           </p>
 
           <div
+            className="answer-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
@@ -2395,6 +2397,7 @@ export default function Home() {
               return (
                 <button
                   key={`${opt.value}-${opt.labelJa}`}
+                  className="answer-button"
                   onClick={(event) => selectAnswer(opt.value, event.currentTarget, event.timeStamp)}
                   style={{
                     minHeight: 86,
@@ -2576,3 +2579,4 @@ export default function Home() {
     </main>
   );
 }
+
