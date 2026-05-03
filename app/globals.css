@@ -395,6 +395,10 @@ strong {
   .app-header {
     align-items: flex-start !important;
     gap: 10px !important;
+    position: relative !important;
+    height: 112px !important;
+    max-height: 112px !important;
+    overflow: visible !important;
   }
 
   .app-title-row {
@@ -426,6 +430,9 @@ strong {
   }
 
   .exchange-ticker-pair {
+    position: absolute;
+    left: 0;
+    top: 72px;
     width: min(100%, 286px);
     max-width: 286px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
