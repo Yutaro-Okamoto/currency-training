@@ -1504,6 +1504,7 @@ export default function Home() {
             </p>
           </div>
           <div
+            className="daily-level-card"
             style={{
               padding: "11px 13px",
               borderRadius: 8,

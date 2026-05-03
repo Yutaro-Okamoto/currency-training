@@ -246,15 +246,35 @@ strong {
   }
 
   .daily-score-grid {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 0.86fr) !important;
+    grid-template-areas:
+      "score level"
+      "progress progress" !important;
+    gap: 12px !important;
+    align-items: start !important;
   }
 
   .daily-score-main {
+    grid-area: score;
     max-width: 100% !important;
   }
 
+  .daily-level-card {
+    grid-area: level;
+    align-self: stretch;
+    padding: 10px !important;
+  }
+
+  .daily-level-card p:last-child {
+    font-size: 17px !important;
+  }
+
+  .daily-level-card span {
+    font-size: 11px !important;
+  }
+
   .daily-progress-block {
+    grid-area: progress;
     max-width: 280px !important;
   }
 
