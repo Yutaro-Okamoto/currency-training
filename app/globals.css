@@ -141,7 +141,7 @@ button {
   width: max-content;
   min-width: max-content;
   align-items: center;
-  gap: 34px;
+  gap: 18px;
   white-space: nowrap;
   transform: translate3d(0, -50%, 0);
   animation: exchange-ticker-scroll 16s linear infinite;
@@ -152,7 +152,7 @@ button {
   flex: 0 0 auto;
   position: relative;
   display: grid !important;
-  min-width: 126px;
+  min-width: 112px;
   height: 44px;
   grid-template-rows: 13px 1fr;
   align-content: center;
@@ -440,12 +440,12 @@ strong {
   }
 
   .exchange-ticker-track {
-    gap: 32px;
+    gap: 14px;
     animation-duration: 15s;
   }
 
   .exchange-ticker-item {
-    min-width: 104px;
+    min-width: 94px;
     height: 28px;
     grid-template-rows: 9px 1fr;
     padding-left: 13px;
