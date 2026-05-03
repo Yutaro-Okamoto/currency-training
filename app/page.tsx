@@ -1458,7 +1458,7 @@ export default function Home() {
         style={{
           padding: "12px 14px",
           borderRadius: 8,
-          background: "linear-gradient(180deg, rgba(15, 34, 58, 0.86), rgba(8, 18, 32, 0.82))",
+          background: "linear-gradient(180deg, #0f223a, #081220)",
           border: "1px solid var(--line)",
         }}
       >
@@ -2071,17 +2071,20 @@ export default function Home() {
           <section
             style={{
               marginTop: 30,
+              maxWidth: 760,
+              marginLeft: "auto",
+              marginRight: "auto",
               padding: 24,
               borderRadius: 8,
-              border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.9), rgba(6, 17, 31, 0.82))",
-              boxShadow: "0 30px 100px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.07)",
+              border: "1px solid transparent",
+              background: "transparent",
+              boxShadow: "none",
             }}
           >
             <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 800 }}>{t.progressLabel}</p>
             <h2 className="result-title" style={{ margin: "8px 0 0", fontSize: 34 }}>{t.resultsTitle}</h2>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginTop: 22 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(128px, 148px))", justifyContent: "start", gap: 12, marginTop: 22 }}>
               {renderStatCard(t.correctAnswers, `${correctCount}`)}
               {renderStatCard(t.wrongAnswers, `${Math.max(0, totalCount - correctCount)}`)}
               {renderStatCard(t.score, `${accuracy}%`)}
