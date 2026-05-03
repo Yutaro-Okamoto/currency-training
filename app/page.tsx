@@ -294,9 +294,6 @@ const UNIT_SCALES: UnitScale[] = [
 const TRAINING_UNIT_SCALES = UNIT_SCALES.filter((scale) => scale.value >= 1_000_000);
 
 const UNIT_REFERENCE_SCALES: UnitScale[] = [
-  { value: 10, ja: "十", en: "ten" },
-  { value: 100, ja: "百", en: "hundred" },
-  { value: 1_000, ja: "千", en: "thousand" },
   { value: 10_000, ja: "万", en: "10 thousand" },
   { value: 100_000, ja: "10万", en: "100 thousand" },
   { value: 1_000_000, ja: "100万", en: "million" },
@@ -306,6 +303,13 @@ const UNIT_REFERENCE_SCALES: UnitScale[] = [
   { value: 10_000_000_000, ja: "100億", en: "10 billion" },
   { value: 100_000_000_000, ja: "1000億", en: "100 billion" },
   { value: 1_000_000_000_000, ja: "兆", en: "trillion" },
+];
+
+const FX_REFERENCE_SCALES: UnitScale[] = [
+  { value: 10, ja: "十", en: "ten" },
+  { value: 100, ja: "百", en: "hundred" },
+  { value: 1_000, ja: "千", en: "thousand" },
+  ...UNIT_REFERENCE_SCALES,
 ];
 
 function randomFrom<T>(arr: T[]) {
@@ -1477,7 +1481,7 @@ export default function Home() {
           boxShadow: "0 26px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.07)",
         }}
       >
-        <div className="daily-score-grid" style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.72fr) minmax(260px, 1.45fr)", gap: 14, alignItems: "center" }}>
+        <div className="daily-score-grid" style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.8fr) minmax(220px, 1fr) minmax(170px, 0.9fr)", gap: 14, alignItems: "center" }}>
           <div className="daily-score-main" style={{ maxWidth: 420 }}>
             <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
             <p style={{ margin: "5px 0 0", fontFamily: "var(--font-display)", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>
@@ -1486,23 +1490,6 @@ export default function Home() {
             </p>
           </div>
           <div className="daily-progress-block">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "baseline",
-                gap: 8,
-                padding: "9px 12px",
-                marginBottom: 9,
-                borderRadius: 8,
-                border: "1px solid rgba(125, 211, 252, 0.24)",
-                background: "rgba(2, 6, 23, 0.4)",
-              }}
-            >
-              <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</span>
-              <span style={{ fontSize: 20, fontWeight: 950 }}>
-                Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 13 }}>{levelTitle}</span>
-              </span>
-            </div>
             <div style={{ height: 7, borderRadius: 999, background: "rgba(148, 163, 184, 0.2)", overflow: "hidden" }}>
               <div
                 style={{
@@ -1514,6 +1501,19 @@ export default function Home() {
             </div>
             <p style={{ margin: "7px 0 0", color: "#cbd5e1", fontSize: 12, fontWeight: 750 }}>
               {levelInfo.nextScore ? `${t.nextRankLabel}: ${nextRankPoints}${t.pointsUnit}` : t.maxRankLabel}
+            </p>
+          </div>
+          <div
+            style={{
+              padding: "11px 13px",
+              borderRadius: 8,
+              border: "1px solid rgba(125, 211, 252, 0.24)",
+              background: "rgba(2, 6, 23, 0.4)",
+            }}
+          >
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</p>
+            <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 950 }}>
+              Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 13 }}>{levelTitle}</span>
             </p>
           </div>
         </div>
@@ -1540,10 +1540,11 @@ export default function Home() {
 
         <div style={{ marginTop: 24, overflowX: "auto", paddingBottom: 8 }}>
           <div
+            className="reference-grid unit-reference-grid"
             style={{
-              minWidth: 1120,
+              minWidth: 980,
               display: "grid",
-              gridTemplateColumns: `108px repeat(${UNIT_REFERENCE_SCALES.length}, minmax(78px, 1fr))`,
+              gridTemplateColumns: `108px repeat(${UNIT_REFERENCE_SCALES.length}, minmax(92px, 1fr))`,
               gap: 8,
               alignItems: "center",
             }}
@@ -1554,6 +1555,7 @@ export default function Home() {
 
               return (
                 <div
+                  className="reference-cell"
                   key={`foreign-${scale.value}`}
                   style={{
                     minHeight: 62,
@@ -1599,6 +1601,7 @@ export default function Home() {
 
               return (
                 <div
+                  className="reference-cell"
                   key={`japanese-${scale.value}`}
                   style={{
                     minHeight: 62,
@@ -1631,20 +1634,22 @@ export default function Home() {
 
           <div style={{ marginTop: 18, overflowX: "auto", paddingBottom: 8 }}>
             <div
+              className="reference-grid fx-reference-grid"
               style={{
-                minWidth: 1120,
+                minWidth: 1320,
                 display: "grid",
-                gridTemplateColumns: `108px repeat(${UNIT_REFERENCE_SCALES.length}, minmax(78px, 1fr))`,
+                gridTemplateColumns: `108px repeat(${FX_REFERENCE_SCALES.length}, minmax(92px, 1fr))`,
                 gap: 8,
                 alignItems: "stretch",
               }}
             >
               <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.usdToJpyAxis}</div>
-              {UNIT_REFERENCE_SCALES.map((scale) => {
+              {FX_REFERENCE_SCALES.map((scale) => {
                 const keyScale = isKeyReferenceScale(scale.value);
 
                 return (
                   <div
+                    className="reference-cell fx-reference-cell"
                     key={`usd-axis-${scale.value}`}
                     style={{
                       minHeight: 74,
@@ -1669,11 +1674,12 @@ export default function Home() {
               })}
 
               <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.eurToJpyAxis}</div>
-              {UNIT_REFERENCE_SCALES.map((scale) => {
+              {FX_REFERENCE_SCALES.map((scale) => {
                 const keyScale = isKeyReferenceScale(scale.value);
 
                 return (
                   <div
+                    className="reference-cell fx-reference-cell"
                     key={`eur-axis-${scale.value}`}
                     style={{
                       minHeight: 74,
