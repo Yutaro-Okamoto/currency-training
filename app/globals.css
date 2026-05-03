@@ -394,12 +394,13 @@ strong {
 
   .app-header {
     align-items: flex-start !important;
+    gap: 10px !important;
   }
 
   .app-title-row {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 10px !important;
+    gap: 6px !important;
   }
 
   .app-content {
@@ -412,14 +413,23 @@ strong {
 
   .exchange-ticker {
     flex-basis: auto;
-    height: 42px;
+    height: 36px;
+  }
+
+  .exchange-ticker::before,
+  .exchange-ticker::after {
+    width: 28px;
+  }
+
+  .exchange-ticker-cylinder {
+    inset: 4px 0;
   }
 
   .exchange-ticker-pair {
-    width: min(100%, 320px);
-    max-width: 320px;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    width: min(100%, 286px);
+    max-width: 286px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
   }
 
   .exchange-ticker-track {
@@ -428,20 +438,25 @@ strong {
   }
 
   .exchange-ticker-item {
-    min-width: 108px;
-    height: 34px;
-    grid-template-rows: 10px 1fr;
-    padding-left: 16px;
+    min-width: 104px;
+    height: 28px;
+    grid-template-rows: 9px 1fr;
+    padding-left: 13px;
+  }
+
+  .exchange-ticker-item::before {
+    width: 6px;
+    height: 6px;
   }
 
   .exchange-ticker-from {
-    font-size: 9px;
-    line-height: 10px;
+    font-size: 8px;
+    line-height: 9px;
   }
 
   .exchange-ticker-to {
-    font-size: 16px;
-    line-height: 19px;
+    font-size: 14px;
+    line-height: 17px;
   }
 
   .daily-score-grid {
