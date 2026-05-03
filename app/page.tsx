@@ -330,6 +330,7 @@ function formatCompact(value: number) {
 function formatJapaneseYen(value: number) {
   if (value >= 1_0000_0000_0000) return `${formatCompact(Math.round(value / 1_0000_0000_000) / 10)}兆円`;
   if (value >= 1_0000_0000) return `${formatCompact(Math.round(value / 1_0000_000) / 10)}億円`;
+  if (value < 100_000) return `${Math.round(value).toLocaleString()}円`;
   if (value >= 1_0000) return `${Math.round(value / 1_0000)}万円`;
   return `${Math.round(value).toLocaleString()}円`;
 }
@@ -1395,28 +1396,28 @@ export default function Home() {
     );
   }
 
-  function renderSupportModeCard(step: string, title: string, desc: string, onClick: () => void) {
+  function renderModeCard(step: string, title: string, desc: string, onClick: () => void) {
     return (
-      <div>
-        <p style={{ margin: "0 0 8px", color: "#9db2c8", fontSize: 12, fontWeight: 900 }}>{step}</p>
+      <div style={{ marginTop: 12 }}>
+        <p style={{ margin: "0 0 12px", color: "#d6e4f5", fontSize: 14, fontWeight: 900 }}>{step}</p>
         <button
           onClick={onClick}
           style={{
             width: "100%",
-            minHeight: 180,
-            padding: 22,
+            minHeight: 112,
+            padding: 18,
             borderRadius: 8,
             border: "1px solid rgba(255, 255, 255, 0.18)",
             background:
               "linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, transparent 22%), radial-gradient(circle at 88% 16%, rgba(250, 204, 21, 0.18), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.94), rgba(37, 99, 235, 0.84))",
             color: "white",
             fontWeight: "bold",
-            fontSize: 27,
+            fontSize: 26,
             cursor: "pointer",
-            textAlign: "center",
+            textAlign: "left",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "center",
             transform: "perspective(900px) rotateX(2deg)",
             boxShadow:
@@ -1424,42 +1425,7 @@ export default function Home() {
           }}
         >
           {title}
-          <div style={{ color: "rgba(255, 255, 255, 0.86)", fontSize: 14, fontWeight: 750, marginTop: 12, lineHeight: 1.55, maxWidth: 330 }}>{desc}</div>
-        </button>
-      </div>
-    );
-  }
-
-  function renderBusinessModeCard() {
-    return (
-      <div style={{ marginTop: 22 }}>
-        <p style={{ margin: "0 0 8px", color: "#fde68a", fontSize: 14, fontWeight: 950 }}>{t.businessStep}</p>
-        <button
-          onClick={() => chooseMode("business")}
-          style={{
-            width: "100%",
-            minHeight: 190,
-            padding: 30,
-            borderRadius: 8,
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            background:
-              "linear-gradient(145deg, rgba(255, 255, 255, 0.18) 0%, transparent 24%), radial-gradient(circle at 88% 18%, rgba(250, 204, 21, 0.24), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.98), rgba(37, 99, 235, 0.92))",
-            color: "white",
-            fontWeight: "bold",
-            fontSize: 34,
-            cursor: "pointer",
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            transform: "perspective(900px) rotateX(2deg)",
-            boxShadow:
-              "0 24px 0 rgba(2, 6, 23, 0.46), 0 42px 90px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -22px 38px rgba(2, 6, 23, 0.18)",
-          }}
-        >
-          {t.businessTitle}
-          <div style={{ color: "rgba(255, 255, 255, 0.88)", fontSize: 16, fontWeight: 760, marginTop: 14, lineHeight: 1.55, maxWidth: 520 }}>{t.businessDesc}</div>
+          <div style={{ color: "rgba(255, 255, 255, 0.86)", fontSize: 14, fontWeight: 750, marginTop: 8, lineHeight: 1.45, maxWidth: 520 }}>{desc}</div>
         </button>
       </div>
     );
@@ -1485,8 +1451,8 @@ export default function Home() {
     return (
       <section
         style={{
-          marginTop: 28,
-          padding: 22,
+          marginTop: 22,
+          padding: 16,
           borderRadius: 8,
           border: "1px solid rgba(250, 204, 21, 0.26)",
           background:
@@ -1494,42 +1460,41 @@ export default function Home() {
           boxShadow: "0 26px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.07)",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.8fr) minmax(180px, 1fr) minmax(170px, 0.9fr)", gap: 14, alignItems: "center" }}>
           <div>
             <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
-            <p style={{ margin: "8px 0 0", fontFamily: "var(--font-display)", fontSize: 42, lineHeight: 1, fontWeight: 900 }}>
+            <p style={{ margin: "5px 0 0", fontFamily: "var(--font-display)", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>
               {dailyScore}
-              <span style={{ marginLeft: 8, fontSize: 18, color: "#cbd5e1" }}>{t.pointsUnit}</span>
+              <span style={{ marginLeft: 6, fontSize: 14, color: "#cbd5e1" }}>{t.pointsUnit}</span>
+            </p>
+          </div>
+          <div>
+            <div style={{ height: 7, borderRadius: 999, background: "rgba(148, 163, 184, 0.2)", overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${Math.min(100, ((dailyScore % 100) / 100) * 100)}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #facc15, #38bdf8, #22c55e)",
+                }}
+              />
+            </div>
+            <p style={{ margin: "7px 0 0", color: "#cbd5e1", fontSize: 12, fontWeight: 750 }}>
+              {levelInfo.nextScore ? `${t.nextRankLabel}: ${nextRankPoints}${t.pointsUnit}` : t.maxRankLabel}
             </p>
           </div>
           <div
             style={{
-              minWidth: 190,
-              padding: "13px 15px",
+              padding: "11px 13px",
               borderRadius: 8,
               border: "1px solid rgba(125, 211, 252, 0.24)",
               background: "rgba(2, 6, 23, 0.4)",
             }}
           >
             <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</p>
-            <p style={{ margin: "5px 0 0", fontSize: 24, fontWeight: 950 }}>
-              Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 15 }}>{levelTitle}</span>
+            <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 950 }}>
+              Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 13 }}>{levelTitle}</span>
             </p>
           </div>
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <div style={{ height: 8, borderRadius: 999, background: "rgba(148, 163, 184, 0.2)", overflow: "hidden" }}>
-            <div
-              style={{
-                width: `${Math.min(100, ((dailyScore % 100) / 100) * 100)}%`,
-                height: "100%",
-                background: "linear-gradient(90deg, #facc15, #38bdf8, #22c55e)",
-              }}
-            />
-          </div>
-          <p style={{ margin: "10px 0 0", color: "#cbd5e1", fontSize: 13, fontWeight: 750 }}>
-            {levelInfo.nextScore ? `${t.nextRankLabel}: ${nextRankPoints}${t.pointsUnit}` : t.maxRankLabel}
-          </p>
         </div>
       </section>
     );
@@ -1868,11 +1833,10 @@ export default function Home() {
                 {t.referenceButton}
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 18 }}>
-              {renderSupportModeCard(t.trainingStep, t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
-              {renderSupportModeCard(t.dailyStep, t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
-            </div>
-            {renderBusinessModeCard()}
+            <div style={{ marginTop: 18 }} />
+            {renderModeCard(t.trainingStep, t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
+            {renderModeCard(t.dailyStep, t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
+            {renderModeCard(t.businessStep, t.businessTitle, t.businessDesc, () => chooseMode("business"))}
           </section>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22, color: "#94a3b8", fontSize: 14 }}>
