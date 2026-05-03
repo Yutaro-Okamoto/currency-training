@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 type Lang = "ja" | "en";
 type Mode = "business" | "daily" | "training";
+type HomeTab = "business" | "training";
 type BusinessLevel = "basic" | "advanced";
 type Currency = "JPY" | "USD" | "EUR";
 type CurrencyLabelStyle = "default" | "answerCurrency";
@@ -869,6 +870,7 @@ function getBusinessSpeedLabel(avgMs: number, lang: Lang) {
 export default function Home() {
   const [lang, setLang] = useState<Lang>("ja");
   const [mode, setMode] = useState<Mode | null>(null);
+  const [homeTab, setHomeTab] = useState<HomeTab>("business");
   const [businessLevel, setBusinessLevel] = useState<BusinessLevel | null>(null);
   const [rates, setRates] = useState<Rates | null>(null);
   const [rateDate, setRateDate] = useState("");
@@ -945,12 +947,16 @@ export default function Home() {
       chooseMode: "モードを選択",
       chooseBusinessLevel: "Business のレベルを選択",
       businessTitle: "Business",
+      businessTab: "ビジネス",
       businessDesc: "ビジネス事例の大型投資・買収金額",
       basicTitle: "基本レベル",
       basicDesc: "ドル・ユーロ建ての大型金額を、日本円でいくらかに揃えて練習",
+      basicStep: "まずは外貨から円への換算に集中",
       advancedTitle: "上級レベル",
       advancedDesc: "円から外貨、外貨から円まで、通貨に合った単位表記で双方向に練習",
+      advancedStep: "実戦に近い双方向の換算に挑戦",
       trainingTitle: "基礎練習",
+      trainingTab: "トレーニング",
       trainingDesc: "万・億・兆と million・billion・trillion の単位練習",
       dailyTitle: "Daily",
       dailyDesc: "100円から50万円くらいの日常金額",
@@ -1016,12 +1022,16 @@ export default function Home() {
       chooseMode: "Choose Mode",
       chooseBusinessLevel: "Choose Business Level",
       businessTitle: "Business",
+      businessTab: "Business",
       businessDesc: "Large investments and acquisition amounts in business cases",
       basicTitle: "Basic",
       basicDesc: "Convert large USD and EUR amounts into Japanese yen",
+      basicStep: "Focus first on converting foreign currencies into yen",
       advancedTitle: "Advanced",
       advancedDesc: "Practice both directions with units matched to each currency",
+      advancedStep: "Try bidirectional conversion closer to real cases",
       trainingTitle: "Basics",
+      trainingTab: "Training",
       trainingDesc: "Practice Japanese units and million, billion, trillion",
       dailyTitle: "Daily",
       dailyDesc: "Everyday spending: around ¥100 to ¥500,000",
@@ -1319,6 +1329,28 @@ export default function Home() {
     setBusinessLevel(null);
   }
 
+  function returnToHome(nextHomeTab: HomeTab = homeTab) {
+    setHomeTab(nextHomeTab);
+    setMode(null);
+    setBusinessLevel(null);
+    setQuestion(null);
+    setSelected(null);
+    setResult("");
+    setAchievement("");
+    setShowResultPopup(false);
+    setResultPopupExiting(false);
+    setPopupPosition("origin");
+    setSessionAnswers([]);
+    setSessionComplete(false);
+    setShowReferenceTable(false);
+    setLevelUpAcknowledged(false);
+    setSessionStarted(false);
+    setSessionStartMs(null);
+    setQuestionStartMs(null);
+    setElapsedMs(0);
+    setCompletedElapsedMs(0);
+  }
+
   function chooseBusinessLevel(nextLevel: BusinessLevel) {
     if (rates) {
       setQuestion(generateQuestionForSession(rates, "business", nextLevel, currencyFilters, []));
@@ -1344,15 +1376,45 @@ export default function Home() {
       setCompletedElapsedMs(0);
     }
 
+    setMode("business");
     setBusinessLevel(nextLevel);
+  }
+
+  function renderExchangeTicker() {
+    if (!rates) return null;
+
+    const items = [
+      `1M USD = ${formatJapaneseYen(1_000_000 * rates.USD)}`,
+      `1B USD = ${formatJapaneseYen(1_000_000_000 * rates.USD)}`,
+      `1億円 = ${formatForeign(100_000_000 / rates.USD, "USD")}`,
+      `1兆円 = ${formatForeign(1_000_000_000_000 / rates.USD, "USD")}`,
+    ];
+    const loopItems = [...items, ...items, ...items];
+
+    return (
+      <div className="exchange-ticker" aria-label="Key exchange conversions">
+        <div className="exchange-ticker-cylinder">
+          <div className="exchange-ticker-track">
+            {loopItems.map((item, index) => (
+              <span className="exchange-ticker-item" key={`${item}-${index}`}>
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   function renderHeader() {
     return (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-        <div>
-          <p style={{ margin: 0, color: "var(--accent)", fontSize: 12, fontWeight: 850, letterSpacing: 0, textTransform: "uppercase" }}>Currency Sense</p>
-          <h1 className="app-title" style={{ margin: "6px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 800, letterSpacing: 0 }}>{t.appTitle}</h1>
+      <div className="app-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+        <div className="app-title-row" style={{ display: "flex", alignItems: "flex-end", gap: 18, minWidth: 0, flex: 1 }}>
+          <div style={{ flexShrink: 0 }}>
+            <p style={{ margin: 0, color: "var(--accent)", fontSize: 12, fontWeight: 850, letterSpacing: 0, textTransform: "uppercase" }}>Currency Sense</p>
+            <h1 className="app-title" style={{ margin: "6px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 800, letterSpacing: 0 }}>{t.appTitle}</h1>
+          </div>
+          {renderExchangeTicker()}
         </div>
 
         <button
@@ -1449,6 +1511,30 @@ export default function Home() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  function renderHomeTabButton(tab: HomeTab, label: string) {
+    const active = homeTab === tab;
+
+    return (
+      <button
+        type="button"
+        onClick={() => setHomeTab(tab)}
+        style={{
+          flex: 1,
+          padding: "11px 14px",
+          borderRadius: 999,
+          border: active ? "1px solid rgba(250, 204, 21, 0.46)" : "1px solid rgba(148, 163, 184, 0.18)",
+          background: active ? "linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(14, 165, 233, 0.18))" : "rgba(2, 6, 23, 0.34)",
+          color: active ? "#fef3c7" : "#9db2c8",
+          fontWeight: 950,
+          cursor: "pointer",
+          boxShadow: active ? "0 12px 28px rgba(250, 204, 21, 0.1)" : "none",
+        }}
+      >
+        {label}
+      </button>
     );
   }
 
@@ -1861,10 +1947,22 @@ export default function Home() {
                 {t.referenceButton}
               </button>
             </div>
-            <div style={{ marginTop: 18 }} />
-            {renderModeCard(t.trainingStep, t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
-            {renderModeCard(t.dailyStep, t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
-            {renderModeCard(t.businessStep, t.businessTitle, t.businessDesc, () => chooseMode("business"))}
+            <div style={{ display: "flex", gap: 10, marginTop: 18, padding: 4, borderRadius: 999, background: "rgba(2, 6, 23, 0.36)", border: "1px solid rgba(148, 163, 184, 0.16)" }}>
+              {renderHomeTabButton("business", t.businessTab)}
+              {renderHomeTabButton("training", t.trainingTab)}
+            </div>
+
+            {homeTab === "business" ? (
+              <>
+                {renderModeCard(t.basicStep, t.basicTitle, t.basicDesc, () => chooseBusinessLevel("basic"))}
+                {renderModeCard(t.advancedStep, t.advancedTitle, t.advancedDesc, () => chooseBusinessLevel("advanced"))}
+              </>
+            ) : (
+              <>
+                {renderModeCard(t.trainingStep, t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
+                {renderModeCard(t.dailyStep, t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
+              </>
+            )}
           </section>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22, color: "#94a3b8", fontSize: 14 }}>
@@ -1900,7 +1998,7 @@ export default function Home() {
           </section>
 
           <button
-            onClick={() => setMode(null)}
+            onClick={() => returnToHome("business")}
             style={{
               marginTop: 20,
               padding: "12px 16px",
@@ -2190,9 +2288,7 @@ export default function Home() {
 
               <button
                 onClick={() => {
-                  setMode(null);
-                  setBusinessLevel(null);
-                  resetSession();
+                  returnToHome(mode === "business" ? "business" : "training");
                 }}
                 style={{
                   padding: "13px 18px",
@@ -2220,7 +2316,7 @@ export default function Home() {
   const caseSummary = lang === "ja" ? question.caseSummaryJa : question.caseSummaryEn;
   const highlightedAmount = lang === "ja" ? question.highlightedAmountJa : question.highlightedAmountEn;
   const modeTitle = mode === "business" ? t.businessTitle : mode === "training" ? t.trainingTitle : t.dailyTitle;
-  const backLabel = mode === "business" ? t.backToBusinessLevel : t.back;
+  const backLabel = t.back;
   const pointsForCurrentMode = getQuestionPoints(mode, businessLevel);
   const startMessage = mode === "business" ? t.businessStartMessage : t.warmupStartMessage;
 
@@ -2285,17 +2381,7 @@ export default function Home() {
 
           <button
             onClick={() => {
-              if (mode === "business") {
-                setBusinessLevel(null);
-                setQuestion(null);
-                setSessionAnswers([]);
-                setSessionComplete(false);
-                return;
-              }
-
-              setMode(null);
-              setSessionAnswers([]);
-              setSessionComplete(false);
+              returnToHome(mode === "business" ? "business" : "training");
             }}
             style={{
               marginTop: 20,
@@ -2431,33 +2517,7 @@ export default function Home() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
             <button
               onClick={() => {
-                if (mode === "business") {
-                  setBusinessLevel(null);
-                  setQuestion(null);
-                  setSelected(null);
-                  setResult("");
-                  setAchievement("");
-                  setShowResultPopup(false);
-                  setResultPopupExiting(false);
-                  setPopupPosition("origin");
-                  setSessionAnswers([]);
-                  setSessionComplete(false);
-                  setSessionStarted(false);
-                  setSessionStartMs(null);
-                  setQuestionStartMs(null);
-                  setElapsedMs(0);
-                  setCompletedElapsedMs(0);
-                  return;
-                }
-
-                setMode(null);
-                setSessionAnswers([]);
-                setSessionComplete(false);
-                setSessionStarted(false);
-                setSessionStartMs(null);
-                setQuestionStartMs(null);
-                setElapsedMs(0);
-                setCompletedElapsedMs(0);
+                returnToHome(mode === "business" ? "business" : "training");
               }}
               style={{
                 padding: "13px 18px",
