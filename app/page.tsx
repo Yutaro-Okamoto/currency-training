@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 type Lang = "ja" | "en";
 type Mode = "business" | "daily" | "training";
@@ -56,6 +56,14 @@ type SessionAnswer = {
   mode: Mode;
   answerCurrency?: Currency;
   deltaRatio: number;
+  answerMs: number;
+};
+
+type LevelInfo = {
+  level: number;
+  titleJa: string;
+  titleEn: string;
+  nextScore?: number;
 };
 
 type UnitScale = {
@@ -285,6 +293,21 @@ const UNIT_SCALES: UnitScale[] = [
 
 const TRAINING_UNIT_SCALES = UNIT_SCALES.filter((scale) => scale.value >= 1_000_000);
 
+const UNIT_REFERENCE_SCALES: UnitScale[] = [
+  { value: 10, ja: "十", en: "ten" },
+  { value: 100, ja: "百", en: "hundred" },
+  { value: 1_000, ja: "千", en: "thousand" },
+  { value: 10_000, ja: "万", en: "10 thousand" },
+  { value: 100_000, ja: "10万", en: "100 thousand" },
+  { value: 1_000_000, ja: "100万", en: "million" },
+  { value: 10_000_000, ja: "1000万", en: "10 million" },
+  { value: 100_000_000, ja: "億", en: "100 million" },
+  { value: 1_000_000_000, ja: "10億", en: "billion" },
+  { value: 10_000_000_000, ja: "100億", en: "10 billion" },
+  { value: 100_000_000_000, ja: "1000億", en: "100 billion" },
+  { value: 1_000_000_000_000, ja: "兆", en: "trillion" },
+];
+
 function randomFrom<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -402,6 +425,27 @@ function targetCurrencyForBusinessCase(source: Currency, level: BusinessLevel, f
   return targetCurrencyFor(source);
 }
 
+function shortBusinessPrompt(currency: Currency) {
+  if (currency === "JPY") {
+    return {
+      ja: "日本円では？",
+      en: "In Japanese yen?",
+    };
+  }
+
+  if (currency === "USD") {
+    return {
+      ja: "米ドルでは？",
+      en: "In US dollars?",
+    };
+  }
+
+  return {
+    ja: "ユーロでは？",
+    en: "In euros?",
+  };
+}
+
 function renderHighlightedText(text: string, highlight?: string) {
   if (!highlight || !text.includes("{amount}")) return text;
 
@@ -409,7 +453,20 @@ function renderHighlightedText(text: string, highlight?: string) {
   return (
     <>
       {before}
-      <strong>{highlight}</strong>
+      <span
+        style={{
+          display: "inline-block",
+          padding: "2px 8px",
+          margin: "0 3px",
+          borderRadius: 8,
+          color: "#fff7ed",
+          fontWeight: 950,
+          background: "linear-gradient(135deg, rgba(250, 204, 21, 0.98), rgba(249, 115, 22, 0.92))",
+          boxShadow: "0 0 24px rgba(250, 204, 21, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.28)",
+        }}
+      >
+        {highlight}
+      </span>
       {after}
     </>
   );
@@ -465,15 +522,12 @@ function generateBusinessQuestion(rates: Rates, level: BusinessLevel, filters: C
 
   if (advanced) {
     const sourceIsJpy = businessCase.currency === "JPY";
-    const promptJa = `${sourceIsJpy ? businessCase.amountLabelJa : businessCase.amountLabelEn}は${
-      answerCurrency === "JPY" ? "日本円" : "米ドル"
-    }でおよそいくら？`;
-    const promptEn = `How much is ${sourceIsJpy ? businessCase.amountLabelJa : businessCase.amountLabelEn} in ${answerCurrency}?`;
+    const prompt = shortBusinessPrompt(answerCurrency);
     const correctOption = makeCurrencyOption(correct, answerCurrency, optionStyle);
 
     return {
-      textJa: promptJa,
-      textEn: promptEn,
+      textJa: prompt.ja,
+      textEn: prompt.en,
       correct,
       answerCurrency,
       correctLabelJa: correctOption.labelJa,
@@ -486,9 +540,11 @@ function generateBusinessQuestion(rates: Rates, level: BusinessLevel, filters: C
     };
   }
 
+  const prompt = shortBusinessPrompt(answerCurrency);
+
   return {
-    textJa: `${businessCase.amountLabelJa}は${answerCurrency === "JPY" ? "日本円" : "米ドル"}でおよそいくら？`,
-    textEn: `How much is ${businessCase.amountLabelEn} in ${answerCurrency}?`,
+    textJa: prompt.ja,
+    textEn: prompt.en,
     correct,
     answerCurrency,
     options,
@@ -507,7 +563,7 @@ function generateDailyQuestion(rates: Rates, filters: CurrencyFilters): Question
   const type = randomFrom(types);
 
   if (type === "JPY_TO_USD") {
-    const yen = randomFrom([100, 300, 500, 1000, 3000, 5000, 10000, 30000, 50000, 100000, 300000, 500000]);
+    const yen = randomFrom([10000, 30000, 50000, 100000, 300000, 500000, 800000, 1000000]);
     const correct = roundNice(yen / rates.USD);
     return {
       textJa: `${formatJapaneseYen(yen)} はドルでいくら？`,
@@ -519,7 +575,7 @@ function generateDailyQuestion(rates: Rates, filters: CurrencyFilters): Question
   }
 
   if (type === "JPY_TO_EUR") {
-    const yen = randomFrom([100, 300, 500, 1000, 3000, 5000, 10000, 30000, 50000, 100000, 300000, 500000]);
+    const yen = randomFrom([10000, 30000, 50000, 100000, 300000, 500000, 800000, 1000000]);
     const correct = roundNice(yen / rates.EUR);
     return {
       textJa: `${formatJapaneseYen(yen)} はユーロでいくら？`,
@@ -531,7 +587,7 @@ function generateDailyQuestion(rates: Rates, filters: CurrencyFilters): Question
   }
 
   if (type === "USD_TO_JPY") {
-    const usd = randomFrom([1, 3, 5, 10, 20, 50, 100, 300, 500, 1000, 3000]);
+    const usd = randomFrom([50, 100, 300, 500, 1000, 3000, 5000, 10000]);
     const correct = roundNice(usd * rates.USD);
     return {
       textJa: `$${usd} は日本円でいくら？`,
@@ -542,7 +598,7 @@ function generateDailyQuestion(rates: Rates, filters: CurrencyFilters): Question
     };
   }
 
-  const eur = randomFrom([1, 3, 5, 10, 20, 50, 100, 300, 500, 1000, 3000]);
+  const eur = randomFrom([50, 100, 300, 500, 1000, 3000, 5000, 10000]);
   const correct = roundNice(eur * rates.EUR);
   return {
     textJa: `€${eur} は日本円でいくら？`,
@@ -582,6 +638,37 @@ function generateQuestion(rates: Rates, mode: Mode, businessLevel: BusinessLevel
   if (mode === "business") return generateBusinessQuestion(rates, businessLevel, filters);
   if (mode === "training") return generateUnitQuestion();
   return generateDailyQuestion(rates, filters);
+}
+
+function getQuestionKey(question: Question) {
+  return `${question.textJa}|${question.textEn}|${question.correct}`;
+}
+
+function generateQuestionForSession(
+  rates: Rates,
+  mode: Mode,
+  businessLevel: BusinessLevel,
+  filters: CurrencyFilters,
+  answers: SessionAnswer[],
+): Question {
+  if (mode !== "training") return generateQuestion(rates, mode, businessLevel, filters);
+
+  const counts = new Map<string, number>();
+  answers.forEach((answer) => {
+    counts.set(answer.questionKey, (counts.get(answer.questionKey) ?? 0) + 1);
+  });
+  const lastQuestionKey = answers.at(-1)?.questionKey;
+  let fallback: Question | null = null;
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const candidate = generateUnitQuestion();
+    const key = getQuestionKey(candidate);
+
+    if (!fallback && key !== lastQuestionKey) fallback = candidate;
+    if (key !== lastQuestionKey && (counts.get(key) ?? 0) < 2) return candidate;
+  }
+
+  return fallback ?? generateUnitQuestion();
 }
 
 function getMilestoneMessage(streak: number, lang: Lang) {
@@ -652,6 +739,128 @@ function generateAnalysisComment(answers: SessionAnswer[], lang: Lang) {
     : "The misses are less about one unit and more about switching conversion direction. First identify the source currency and answer currency.";
 }
 
+function getTodayKey() {
+  return new Date().toLocaleDateString("sv-SE");
+}
+
+function getDailyScoreStorageKey() {
+  return `currency-training-score-${getTodayKey()}`;
+}
+
+function readStoredDailyScore() {
+  if (typeof window === "undefined") return 0;
+  const stored = window.localStorage.getItem(getDailyScoreStorageKey());
+  return stored ? Number(stored) || 0 : 0;
+}
+
+function subscribeDailyScore(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  const scoreEvent = "currency-training-score-updated";
+  window.addEventListener("storage", callback);
+  window.addEventListener(scoreEvent, callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(scoreEvent, callback);
+  };
+}
+
+function addDailyScore(points: number) {
+  const nextScore = readStoredDailyScore() + points;
+  window.localStorage.setItem(getDailyScoreStorageKey(), String(nextScore));
+  window.dispatchEvent(new Event("currency-training-score-updated"));
+}
+
+function getQuestionPoints(mode: Mode, businessLevel: BusinessLevel | null) {
+  if (mode === "training") return 1;
+  if (mode === "daily") return 2;
+  return businessLevel === "advanced" ? 4 : 3;
+}
+
+function levelWithinBand(score: number, min: number, max: number, startLevel: number, endLevel: number) {
+  if (max <= min) return startLevel;
+  const ratio = (score - min) / (max - min + 1);
+  return Math.min(endLevel, startLevel + Math.floor(ratio * (endLevel - startLevel + 1)));
+}
+
+function getLevelInfo(score: number): LevelInfo {
+  if (score <= 50) {
+    return { level: levelWithinBand(score, 0, 50, 1, 9), titleJa: "初心者", titleEn: "Beginner", nextScore: 51 };
+  }
+  if (score <= 150) {
+    return { level: levelWithinBand(score, 51, 150, 10, 19), titleJa: "アソシエイトコンサル", titleEn: "Associate Consultant", nextScore: 151 };
+  }
+  if (score <= 250) {
+    return { level: levelWithinBand(score, 151, 250, 20, 29), titleJa: "コンサルタント", titleEn: "Consultant", nextScore: 251 };
+  }
+  if (score <= 350) {
+    return { level: levelWithinBand(score, 251, 350, 30, 39), titleJa: "シニアコンサル", titleEn: "Senior Consultant", nextScore: 351 };
+  }
+  if (score <= 450) {
+    return { level: levelWithinBand(score, 351, 450, 40, 49), titleJa: "マネージャー", titleEn: "Manager", nextScore: 451 };
+  }
+  if (score <= 550) {
+    return { level: levelWithinBand(score, 451, 550, 50, 59), titleJa: "シニアマネージャー", titleEn: "Senior Manager", nextScore: 551 };
+  }
+  if (score <= 650) {
+    return { level: levelWithinBand(score, 551, 650, 60, 69), titleJa: "アソシエイトディレクター", titleEn: "Associate Director", nextScore: 651 };
+  }
+  if (score <= 750) {
+    return { level: levelWithinBand(score, 651, 750, 70, 79), titleJa: "ディレクター", titleEn: "Director", nextScore: 751 };
+  }
+  if (score <= 850) {
+    return { level: levelWithinBand(score, 751, 850, 80, 89), titleJa: "アソシエイトパートナー", titleEn: "Associate Partner", nextScore: 851 };
+  }
+  if (score <= 999) {
+    return { level: levelWithinBand(score, 851, 999, 90, 99), titleJa: "パートナー", titleEn: "Partner", nextScore: 1000 };
+  }
+
+  return { level: 100 + Math.floor((score - 1000) / 100), titleJa: "CFO", titleEn: "CFO" };
+}
+
+function isKeyReferenceScale(value: number) {
+  return value === 1_000_000 || value === 1_000_000_000 || value === 1_000_000_000_000;
+}
+
+function formatElapsed(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatSeconds(ms: number) {
+  return `${(ms / 1000).toFixed(1)}秒`;
+}
+
+function formatAxisForeignAmount(value: number, currency: "USD" | "EUR") {
+  const symbol = currency === "USD" ? "$" : "€";
+
+  if (value >= 1_000_000_000_000) return `${symbol}1 trillion`;
+  if (value >= 1_000_000_000) return `${symbol}${formatCompact(value / 1_000_000_000)} billion`;
+  if (value >= 1_000_000) return `${symbol}${formatCompact(value / 1_000_000)} million`;
+  if (value >= 1_000) return `${symbol}${formatCompact(value / 1_000)} thousand`;
+  return `${symbol}${value}`;
+}
+
+function getBusinessSpeedLabel(avgMs: number, lang: Lang) {
+  if (avgMs <= 3000) {
+    return lang === "ja" ? "🥇 海外CEOとエレベーターピッチ成立" : "🥇 Elevator pitch with a global CEO";
+  }
+  if (avgMs <= 5000) {
+    return lang === "ja" ? "🥈 部長にはできる人扱い" : "🥈 The director thinks you are sharp";
+  }
+  if (avgMs <= 8000) {
+    return lang === "ja" ? "🥉 会議ではギリ戦える" : "🥉 You can just about survive the meeting";
+  }
+  if (avgMs <= 12000) {
+    return lang === "ja" ? "🟡 上司の前で一瞬フリーズ" : "🟡 Brief freeze in front of your boss";
+  }
+
+  return lang === "ja" ? "🔴 話してる間に次の議題いってる" : "🔴 They moved to the next agenda item";
+}
+
 export default function Home() {
   const [lang, setLang] = useState<Lang>("ja");
   const [mode, setMode] = useState<Mode | null>(null);
@@ -674,6 +883,15 @@ export default function Home() {
   const [popupOrigin, setPopupOrigin] = useState({ x: 0, y: 0 });
   const [sessionAnswers, setSessionAnswers] = useState<SessionAnswer[]>([]);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const [showReferenceTable, setShowReferenceTable] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
+  const [questionStartMs, setQuestionStartMs] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [completedElapsedMs, setCompletedElapsedMs] = useState(0);
+  const [sessionStartDailyScore, setSessionStartDailyScore] = useState(0);
+  const [levelUpAcknowledged, setLevelUpAcknowledged] = useState(false);
+  const dailyScore = useSyncExternalStore(subscribeDailyScore, readStoredDailyScore, () => 0);
 
   useEffect(() => {
     async function fetchRates() {
@@ -706,6 +924,16 @@ export default function Home() {
     fetchRates();
   }, []);
 
+  useEffect(() => {
+    if (!sessionStarted || sessionComplete || sessionStartMs === null || completedElapsedMs > 0) return;
+
+    const timerId = window.setInterval(() => {
+      setElapsedMs(performance.now() - sessionStartMs);
+    }, 250);
+
+    return () => window.clearInterval(timerId);
+  }, [completedElapsedMs, sessionComplete, sessionStartMs, sessionStarted]);
+
   const t = {
     ja: {
       appTitle: "通貨トレーニング",
@@ -726,7 +954,7 @@ export default function Home() {
       bestStreak: "ベスト",
       questionsDone: "回答数",
       correct: "正解！",
-      wrong: "不正解！正解は ",
+      wrong: "不正解！正解は",
       next: "次へ",
       back: "モード選択に戻る",
       backToMode: "モード選択に戻る",
@@ -746,6 +974,37 @@ export default function Home() {
       restart: "再トライ",
       showResults: "結果を表示する",
       finish: "モード選択に戻る",
+      referenceButton: "早見表を確認する",
+      referenceTitle: "単位の早見表",
+      referenceHint: "上下で同じ桁をそろえています。million は百万、billion は十億、trillion は兆です。",
+      foreignUnits: "海外単位",
+      japaneseUnits: "日本の単位",
+      backToResults: "結果に戻る",
+      backToPrevious: "戻る",
+      referenceFxTitle: "為替の早見軸",
+      referenceFxHint: "各金額を現在の参考レートで円にすると、どのくらいの桁になるかを並べています。",
+      usdToJpyAxis: "ドル → 円",
+      eurToJpyAxis: "ユーロ → 円",
+      trainingStep: "まずは基本的な単位の練習",
+      dailyStep: "次は日々の数字を扱ってみよう",
+      businessStep: "いざ本番、実際のビジネスセンスを磨こう",
+      startTitle: "タイムアタック",
+      startDesc: "スタートすると時間計測が始まります。10問を解き終えるまでのタイムを結果で確認できます。",
+      startButton: "スタート",
+      timeLabel: "タイム",
+      avgCorrectAnswerTime: "正解した解答の平均回答時間",
+      avgCorrectAnswerTimeEmpty: "ビジネスモードで正解した解答がまだありません",
+      dailyScoreTitle: "今日の獲得スコア",
+      levelLabel: "現在レベル",
+      nextRankLabel: "次の肩書きまで",
+      maxRankLabel: "最高ランク",
+      pointsUnit: "pt",
+      pointsPerCorrect: "正解1問",
+      businessStartMessage: "3秒以内に正しい解答が出せたらばっちり！終わったら結果で確認してみて",
+      warmupStartMessage: "タイムアタック！全問正解できるかな？",
+      levelUpTitle: "肩書きアップグレード！",
+      levelUpSubtitle: "今日の積み上げが、ちゃんと次のステージに届きました。",
+      levelUpOk: "結果を見る",
     },
     en: {
       appTitle: "Currency Training",
@@ -766,7 +1025,7 @@ export default function Home() {
       bestStreak: "Best",
       questionsDone: "Answered",
       correct: "Correct!",
-      wrong: "Wrong! Correct answer: ",
+      wrong: "Wrong! Correct answer",
       next: "Next",
       back: "Back to mode select",
       backToMode: "Back to mode select",
@@ -786,11 +1045,49 @@ export default function Home() {
       restart: "Retry",
       showResults: "Show results",
       finish: "Back to mode select",
+      referenceButton: "View unit chart",
+      referenceTitle: "Unit Reference Chart",
+      referenceHint: "The two rows are aligned by place value: million = 百万, billion = 十億, trillion = 兆.",
+      foreignUnits: "Foreign units",
+      japaneseUnits: "Japanese units",
+      backToResults: "Back to results",
+      backToPrevious: "Back",
+      referenceFxTitle: "FX quick axis",
+      referenceFxHint: "Each amount is converted into yen using the current reference rates.",
+      usdToJpyAxis: "USD → JPY",
+      eurToJpyAxis: "EUR → JPY",
+      trainingStep: "Start with the basic unit workout",
+      dailyStep: "Then handle everyday numbers",
+      businessStep: "Now sharpen real business sense",
+      startTitle: "Time Attack",
+      startDesc: "Press start to begin timing. Your result will show how long it took to finish 10 questions.",
+      startButton: "Start",
+      timeLabel: "Time",
+      avgCorrectAnswerTime: "Average answer time for correct business answers",
+      avgCorrectAnswerTimeEmpty: "No correct business answers yet",
+      dailyScoreTitle: "Today's Score",
+      levelLabel: "Current Level",
+      nextRankLabel: "Next title in",
+      maxRankLabel: "Top rank",
+      pointsUnit: "pt",
+      pointsPerCorrect: "per correct",
+      businessStartMessage: "If you can answer correctly within 3 seconds, you are in great shape. Check your result when you finish.",
+      warmupStartMessage: "Time attack! Can you get every question right?",
+      levelUpTitle: "Title upgraded!",
+      levelUpSubtitle: "Today's progress pushed you into the next stage.",
+      levelUpOk: "View results",
     },
   }[lang];
 
   const accuracy = totalCount === 0 ? 0 : Math.round((correctCount / totalCount) * 100);
   const progress = Math.min(100, totalCount * 10);
+  const levelInfo = getLevelInfo(dailyScore);
+  const levelTitle = lang === "ja" ? levelInfo.titleJa : levelInfo.titleEn;
+  const nextRankPoints = levelInfo.nextScore ? Math.max(0, levelInfo.nextScore - dailyScore) : 0;
+  const currentElapsedMs = completedElapsedMs || elapsedMs;
+  const sessionStartLevelInfo = getLevelInfo(sessionStartDailyScore);
+  const sessionStartLevelTitle = lang === "ja" ? sessionStartLevelInfo.titleJa : sessionStartLevelInfo.titleEn;
+  const didUpgradeTitle = sessionStartDailyScore < dailyScore && sessionStartLevelTitle !== levelTitle;
 
   function openResultPopup(originElement: HTMLButtonElement) {
     const rect = originElement.getBoundingClientRect();
@@ -807,14 +1104,15 @@ export default function Home() {
     }, 30);
   }
 
-  function selectAnswer(value: number, originElement: HTMLButtonElement) {
+  function selectAnswer(value: number, originElement: HTMLButtonElement, answeredAtMs: number) {
     if (!question || selected !== null || !mode) return;
 
     const isCorrect = value === question.correct;
     const nextTotalCount = totalCount + 1;
     const selectedOption = question.options.find((option) => option.value === value);
+    const answerMs = Math.max(0, answeredAtMs - (questionStartMs ?? sessionStartMs ?? answeredAtMs));
     const answerRecord: SessionAnswer = {
-      questionKey: `${question.textJa}|${question.textEn}|${question.correct}`,
+      questionKey: getQuestionKey(question),
       prompt: lang === "ja" ? question.textJa : question.textEn,
       correctLabel: formatCorrectAnswer(question, lang),
       selectedLabel: selectedOption ? (lang === "ja" ? selectedOption.labelJa : selectedOption.labelEn) : String(value),
@@ -822,6 +1120,7 @@ export default function Home() {
       mode,
       answerCurrency: question.answerCurrency,
       deltaRatio: question.correct === 0 ? 0 : Math.abs(value - question.correct) / question.correct,
+      answerMs,
     };
 
     setSelected(value);
@@ -833,6 +1132,7 @@ export default function Home() {
       const milestone = getMilestoneMessage(nextStreak, lang);
 
       setCorrectCount((prev) => prev + 1);
+      addDailyScore(getQuestionPoints(mode, businessLevel));
       setStreak(nextStreak);
       setBestStreak((prev) => Math.max(prev, nextStreak));
       setAchievement(milestone);
@@ -843,14 +1143,21 @@ export default function Home() {
       setStreak(0);
       setAchievement("");
 
-      setResult(t.wrong + formatCorrectAnswer(question, lang));
+      setResult(t.wrong);
       openResultPopup(originElement);
+    }
+
+    if (nextTotalCount >= 10 && sessionStartMs !== null) {
+      const finalElapsed = answeredAtMs - sessionStartMs;
+      setElapsedMs(finalElapsed);
+      setCompletedElapsedMs(finalElapsed);
     }
   }
 
   function next() {
     if (!rates || !mode) return;
-    setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", currencyFilters));
+    setQuestion(generateQuestionForSession(rates, mode, businessLevel ?? "basic", currencyFilters, sessionAnswers));
+    setQuestionStartMs(performance.now());
     setSelected(null);
     setResult("");
     setShowResultPopup(false);
@@ -859,15 +1166,39 @@ export default function Home() {
     setAchievement("");
   }
 
+  function startSession(startMs: number) {
+    const now = startMs;
+    setSessionStarted(true);
+    setSessionStartMs(now);
+    setQuestionStartMs(now);
+    setSessionStartDailyScore(dailyScore);
+    setLevelUpAcknowledged(false);
+    setElapsedMs(0);
+    setCompletedElapsedMs(0);
+  }
+
+  function showResultsNow(finishedAtMs: number) {
+    if (sessionStartMs !== null && completedElapsedMs === 0) {
+      const finalElapsed = Math.max(0, finishedAtMs - sessionStartMs);
+      setElapsedMs(finalElapsed);
+      setCompletedElapsedMs(finalElapsed);
+    }
+
+    setResult("");
+    setShowResultPopup(false);
+    setResultPopupExiting(false);
+    setPopupPosition("origin");
+    setAchievement("");
+    setSessionComplete(true);
+    setShowReferenceTable(false);
+  }
+
   function advanceFromPopup() {
     setResultPopupExiting(true);
     setPopupPosition("right");
     window.setTimeout(() => {
       if (totalCount >= 10) {
-        setShowResultPopup(false);
-        setResultPopupExiting(false);
-        setPopupPosition("origin");
-        setSessionComplete(true);
+        showResultsNow(performance.now());
         return;
       }
 
@@ -877,7 +1208,7 @@ export default function Home() {
 
   function resetSession() {
     if (rates && mode) {
-      setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", currencyFilters));
+      setQuestion(generateQuestionForSession(rates, mode, businessLevel ?? "basic", currencyFilters, []));
     }
 
     setSelected(null);
@@ -892,9 +1223,17 @@ export default function Home() {
     setPopupPosition("origin");
     setSessionAnswers([]);
     setSessionComplete(false);
+    setShowReferenceTable(false);
+    setLevelUpAcknowledged(false);
+    setSessionStartDailyScore(dailyScore);
+    setSessionStarted(false);
+    setSessionStartMs(null);
+    setQuestionStartMs(null);
+    setElapsedMs(0);
+    setCompletedElapsedMs(0);
   }
 
-  function toggleCurrencyFilter(currency: "USD" | "EUR") {
+  function toggleCurrencyFilter(currency: "USD" | "EUR", changedAtMs: number) {
     const other = currency === "USD" ? "EUR" : "USD";
     const nextFilters = {
       ...currencyFilters,
@@ -908,7 +1247,8 @@ export default function Home() {
     setCurrencyFilters(nextFilters);
 
     if (rates && (mode === "business" || mode === "daily") && !sessionComplete) {
-      setQuestion(generateQuestion(rates, mode, businessLevel ?? "basic", nextFilters));
+      setQuestion(generateQuestionForSession(rates, mode, businessLevel ?? "basic", nextFilters, sessionAnswers));
+      if (sessionStarted) setQuestionStartMs(changedAtMs);
       setSelected(null);
       setResult("");
       setShowResultPopup(false);
@@ -935,11 +1275,19 @@ export default function Home() {
       setPopupPosition("origin");
       setSessionAnswers([]);
       setSessionComplete(false);
+      setShowReferenceTable(false);
+      setLevelUpAcknowledged(false);
+      setSessionStartDailyScore(dailyScore);
+      setSessionStarted(false);
+      setSessionStartMs(null);
+      setQuestionStartMs(null);
+      setElapsedMs(0);
+      setCompletedElapsedMs(0);
       return;
     }
 
     if (rates) {
-      setQuestion(generateQuestion(rates, nextMode, "basic", currencyFilters));
+      setQuestion(generateQuestionForSession(rates, nextMode, "basic", currencyFilters, []));
       setSelected(null);
       setResult("");
       setCorrectCount(0);
@@ -952,6 +1300,14 @@ export default function Home() {
       setPopupPosition("origin");
       setSessionAnswers([]);
       setSessionComplete(false);
+      setShowReferenceTable(false);
+      setLevelUpAcknowledged(false);
+      setSessionStartDailyScore(dailyScore);
+      setSessionStarted(false);
+      setSessionStartMs(null);
+      setQuestionStartMs(null);
+      setElapsedMs(0);
+      setCompletedElapsedMs(0);
     }
 
     setMode(nextMode);
@@ -960,7 +1316,7 @@ export default function Home() {
 
   function chooseBusinessLevel(nextLevel: BusinessLevel) {
     if (rates) {
-      setQuestion(generateQuestion(rates, "business", nextLevel, currencyFilters));
+      setQuestion(generateQuestionForSession(rates, "business", nextLevel, currencyFilters, []));
       setSelected(null);
       setResult("");
       setCorrectCount(0);
@@ -973,6 +1329,14 @@ export default function Home() {
       setPopupPosition("origin");
       setSessionAnswers([]);
       setSessionComplete(false);
+      setShowReferenceTable(false);
+      setLevelUpAcknowledged(false);
+      setSessionStartDailyScore(dailyScore);
+      setSessionStarted(false);
+      setSessionStartMs(null);
+      setQuestionStartMs(null);
+      setElapsedMs(0);
+      setCompletedElapsedMs(0);
     }
 
     setBusinessLevel(nextLevel);
@@ -1031,6 +1395,76 @@ export default function Home() {
     );
   }
 
+  function renderSupportModeCard(step: string, title: string, desc: string, onClick: () => void) {
+    return (
+      <div>
+        <p style={{ margin: "0 0 8px", color: "#9db2c8", fontSize: 12, fontWeight: 900 }}>{step}</p>
+        <button
+          onClick={onClick}
+          style={{
+            width: "100%",
+            minHeight: 180,
+            padding: 22,
+            borderRadius: 8,
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            background:
+              "linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, transparent 22%), radial-gradient(circle at 88% 16%, rgba(250, 204, 21, 0.18), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.94), rgba(37, 99, 235, 0.84))",
+            color: "white",
+            fontWeight: "bold",
+            fontSize: 27,
+            cursor: "pointer",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: "perspective(900px) rotateX(2deg)",
+            boxShadow:
+              "0 22px 0 rgba(2, 6, 23, 0.42), 0 34px 70px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 34px rgba(2, 6, 23, 0.18)",
+          }}
+        >
+          {title}
+          <div style={{ color: "rgba(255, 255, 255, 0.86)", fontSize: 14, fontWeight: 750, marginTop: 12, lineHeight: 1.55, maxWidth: 330 }}>{desc}</div>
+        </button>
+      </div>
+    );
+  }
+
+  function renderBusinessModeCard() {
+    return (
+      <div style={{ marginTop: 22 }}>
+        <p style={{ margin: "0 0 8px", color: "#fde68a", fontSize: 14, fontWeight: 950 }}>{t.businessStep}</p>
+        <button
+          onClick={() => chooseMode("business")}
+          style={{
+            width: "100%",
+            minHeight: 190,
+            padding: 30,
+            borderRadius: 8,
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            background:
+              "linear-gradient(145deg, rgba(255, 255, 255, 0.18) 0%, transparent 24%), radial-gradient(circle at 88% 18%, rgba(250, 204, 21, 0.24), transparent 32%), linear-gradient(135deg, rgba(14, 116, 144, 0.98), rgba(37, 99, 235, 0.92))",
+            color: "white",
+            fontWeight: "bold",
+            fontSize: 34,
+            cursor: "pointer",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: "perspective(900px) rotateX(2deg)",
+            boxShadow:
+              "0 24px 0 rgba(2, 6, 23, 0.46), 0 42px 90px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -22px 38px rgba(2, 6, 23, 0.18)",
+          }}
+        >
+          {t.businessTitle}
+          <div style={{ color: "rgba(255, 255, 255, 0.88)", fontSize: 16, fontWeight: 760, marginTop: 14, lineHeight: 1.55, maxWidth: 520 }}>{t.businessDesc}</div>
+        </button>
+      </div>
+    );
+  }
+
   function renderStatCard(label: string, value: string) {
     return (
       <div
@@ -1044,6 +1478,258 @@ export default function Home() {
         <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 750 }}>{label}</p>
         <p style={{ margin: "6px 0 0", fontSize: 20, fontWeight: 800 }}>{value}</p>
       </div>
+    );
+  }
+
+  function renderDailyScorePanel() {
+    return (
+      <section
+        style={{
+          marginTop: 28,
+          padding: 22,
+          borderRadius: 8,
+          border: "1px solid rgba(250, 204, 21, 0.26)",
+          background:
+            "radial-gradient(circle at 86% 14%, rgba(250, 204, 21, 0.2), transparent 28%), linear-gradient(135deg, rgba(15, 34, 58, 0.92), rgba(8, 18, 32, 0.86))",
+          boxShadow: "0 26px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.07)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.dailyScoreTitle}</p>
+            <p style={{ margin: "8px 0 0", fontFamily: "var(--font-display)", fontSize: 42, lineHeight: 1, fontWeight: 900 }}>
+              {dailyScore}
+              <span style={{ marginLeft: 8, fontSize: 18, color: "#cbd5e1" }}>{t.pointsUnit}</span>
+            </p>
+          </div>
+          <div
+            style={{
+              minWidth: 190,
+              padding: "13px 15px",
+              borderRadius: 8,
+              border: "1px solid rgba(125, 211, 252, 0.24)",
+              background: "rgba(2, 6, 23, 0.4)",
+            }}
+          >
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 850 }}>{t.levelLabel}</p>
+            <p style={{ margin: "5px 0 0", fontSize: 24, fontWeight: 950 }}>
+              Lv{levelInfo.level} <span style={{ color: "#7dd3fc", fontSize: 15 }}>{levelTitle}</span>
+            </p>
+          </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ height: 8, borderRadius: 999, background: "rgba(148, 163, 184, 0.2)", overflow: "hidden" }}>
+            <div
+              style={{
+                width: `${Math.min(100, ((dailyScore % 100) / 100) * 100)}%`,
+                height: "100%",
+                background: "linear-gradient(90deg, #facc15, #38bdf8, #22c55e)",
+              }}
+            />
+          </div>
+          <p style={{ margin: "10px 0 0", color: "#cbd5e1", fontSize: 13, fontWeight: 750 }}>
+            {levelInfo.nextScore ? `${t.nextRankLabel}: ${nextRankPoints}${t.pointsUnit}` : t.maxRankLabel}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  function renderReferenceTable() {
+    const referenceRates = rates ?? { USD: 150, EUR: 160 };
+
+    return (
+      <section
+        style={{
+          marginTop: 30,
+          padding: 24,
+          borderRadius: 8,
+          border: "1px solid rgba(125, 211, 252, 0.24)",
+          background: "linear-gradient(180deg, rgba(13, 31, 54, 0.92), rgba(6, 17, 31, 0.84))",
+          boxShadow: "0 30px 100px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.07)",
+        }}
+      >
+        <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 900 }}>{t.referenceTitle}</p>
+        <p style={{ margin: "10px 0 0", color: "#cbd5e1", lineHeight: 1.6, fontWeight: 700 }}>{t.referenceHint}</p>
+
+        <div style={{ marginTop: 24, overflowX: "auto", paddingBottom: 8 }}>
+          <div
+            style={{
+              minWidth: 1120,
+              display: "grid",
+              gridTemplateColumns: `108px repeat(${UNIT_REFERENCE_SCALES.length}, minmax(78px, 1fr))`,
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.foreignUnits}</div>
+            {UNIT_REFERENCE_SCALES.map((scale) => {
+              const keyScale = isKeyReferenceScale(scale.value);
+
+              return (
+                <div
+                  key={`foreign-${scale.value}`}
+                  style={{
+                    minHeight: 62,
+                    padding: "12px 8px",
+                    borderRadius: 8,
+                    border: keyScale ? "1px solid rgba(250, 204, 21, 0.72)" : "1px solid rgba(125, 211, 252, 0.28)",
+                    background: keyScale
+                      ? "linear-gradient(180deg, rgba(250, 204, 21, 0.28), rgba(14, 165, 233, 0.24))"
+                      : "linear-gradient(180deg, rgba(14, 165, 233, 0.22), rgba(37, 99, 235, 0.18))",
+                    textAlign: "center",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: keyScale ? "#fff7ed" : "#e0f2fe",
+                    fontWeight: 950,
+                    lineHeight: 1.2,
+                    boxShadow: keyScale ? "0 0 26px rgba(250, 204, 21, 0.24), inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
+                  }}
+                >
+                  {scale.en}
+                </div>
+              );
+            })}
+
+            <div />
+            {UNIT_REFERENCE_SCALES.map((scale) => (
+              <div key={`connector-${scale.value}`} style={{ height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span
+                  style={{
+                    width: 2,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: "linear-gradient(180deg, #38bdf8, #facc15)",
+                    boxShadow: "0 0 16px rgba(56, 189, 248, 0.34)",
+                  }}
+                />
+              </div>
+            ))}
+
+            <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.japaneseUnits}</div>
+            {UNIT_REFERENCE_SCALES.map((scale) => {
+              const keyScale = isKeyReferenceScale(scale.value);
+
+              return (
+                <div
+                  key={`japanese-${scale.value}`}
+                  style={{
+                    minHeight: 62,
+                    padding: "12px 8px",
+                    borderRadius: 8,
+                    border: keyScale ? "1px solid rgba(250, 204, 21, 0.72)" : "1px solid rgba(250, 204, 21, 0.3)",
+                    background: keyScale
+                      ? "linear-gradient(180deg, rgba(250, 204, 21, 0.32), rgba(249, 115, 22, 0.22))"
+                      : "linear-gradient(180deg, rgba(250, 204, 21, 0.2), rgba(249, 115, 22, 0.16))",
+                    textAlign: "center",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff7ed",
+                    fontWeight: 950,
+                    lineHeight: 1.2,
+                    boxShadow: keyScale ? "0 0 26px rgba(250, 204, 21, 0.24), inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
+                  }}
+                >
+                  {scale.ja}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <section style={{ marginTop: 28 }}>
+          <p style={{ margin: 0, color: "#7dd3fc", fontSize: 13, fontWeight: 900 }}>{t.referenceFxTitle}</p>
+          <p style={{ margin: "8px 0 0", color: "#cbd5e1", lineHeight: 1.6, fontWeight: 700 }}>{t.referenceFxHint}</p>
+
+          <div style={{ marginTop: 18, overflowX: "auto", paddingBottom: 8 }}>
+            <div
+              style={{
+                minWidth: 1120,
+                display: "grid",
+                gridTemplateColumns: `108px repeat(${UNIT_REFERENCE_SCALES.length}, minmax(78px, 1fr))`,
+                gap: 8,
+                alignItems: "stretch",
+              }}
+            >
+              <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.usdToJpyAxis}</div>
+              {UNIT_REFERENCE_SCALES.map((scale) => {
+                const keyScale = isKeyReferenceScale(scale.value);
+
+                return (
+                  <div
+                    key={`usd-axis-${scale.value}`}
+                    style={{
+                      minHeight: 74,
+                      padding: "10px 8px",
+                      borderRadius: 8,
+                      border: keyScale ? "1px solid rgba(250, 204, 21, 0.72)" : "1px solid rgba(125, 211, 252, 0.26)",
+                      background: keyScale
+                        ? "linear-gradient(180deg, rgba(250, 204, 21, 0.26), rgba(14, 165, 233, 0.22))"
+                        : "linear-gradient(180deg, rgba(14, 165, 233, 0.18), rgba(8, 47, 73, 0.2))",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      gap: 6,
+                      textAlign: "center",
+                      boxShadow: keyScale ? "0 0 28px rgba(250, 204, 21, 0.24), inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
+                    }}
+                  >
+                    <span style={{ color: keyScale ? "#fef3c7" : "#bfdbfe", fontSize: 12, fontWeight: 900 }}>{formatAxisForeignAmount(scale.value, "USD")}</span>
+                    <span style={{ color: "#f8fafc", fontWeight: 950, lineHeight: 1.25 }}>{formatJapaneseYen(scale.value * referenceRates.USD)}</span>
+                  </div>
+                );
+              })}
+
+              <div style={{ color: "#fde68a", fontWeight: 950, fontSize: 13 }}>{t.eurToJpyAxis}</div>
+              {UNIT_REFERENCE_SCALES.map((scale) => {
+                const keyScale = isKeyReferenceScale(scale.value);
+
+                return (
+                  <div
+                    key={`eur-axis-${scale.value}`}
+                    style={{
+                      minHeight: 74,
+                      padding: "10px 8px",
+                      borderRadius: 8,
+                      border: keyScale ? "1px solid rgba(250, 204, 21, 0.72)" : "1px solid rgba(250, 204, 21, 0.28)",
+                      background: keyScale
+                        ? "linear-gradient(180deg, rgba(250, 204, 21, 0.32), rgba(249, 115, 22, 0.22))"
+                        : "linear-gradient(180deg, rgba(250, 204, 21, 0.16), rgba(249, 115, 22, 0.15))",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      gap: 6,
+                      textAlign: "center",
+                      boxShadow: keyScale ? "0 0 28px rgba(250, 204, 21, 0.24), inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
+                    }}
+                  >
+                    <span style={{ color: "#fde68a", fontSize: 12, fontWeight: 900 }}>{formatAxisForeignAmount(scale.value, "EUR")}</span>
+                    <span style={{ color: "#fff7ed", fontWeight: 950, lineHeight: 1.25 }}>{formatJapaneseYen(scale.value * referenceRates.EUR)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <button
+          onClick={() => setShowReferenceTable(false)}
+          style={{
+            marginTop: 22,
+            padding: "13px 18px",
+            borderRadius: 8,
+            border: "1px solid rgba(148, 163, 184, 0.28)",
+            background: "rgba(8, 18, 32, 0.78)",
+            color: "#e2e8f0",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          {sessionComplete ? t.backToResults : t.backToPrevious}
+        </button>
+      </section>
     );
   }
 
@@ -1061,10 +1747,10 @@ export default function Home() {
               key={currency}
               type="button"
               aria-pressed={active}
-              onClick={() => toggleCurrencyFilter(currency)}
+              onClick={(event) => toggleCurrencyFilter(currency, event.timeStamp)}
               style={{
-                minWidth: 78,
-                padding: "8px 12px",
+                minWidth: 122,
+                padding: "7px 10px",
                 borderRadius: 999,
                 border: active ? "1px solid rgba(125, 211, 252, 0.55)" : "1px solid rgba(148, 163, 184, 0.22)",
                 background: active ? "linear-gradient(135deg, rgba(8, 145, 178, 0.92), rgba(34, 197, 94, 0.72))" : "rgba(8, 18, 32, 0.78)",
@@ -1072,9 +1758,41 @@ export default function Home() {
                 fontWeight: 900,
                 cursor: "pointer",
                 boxShadow: active ? "0 12px 28px rgba(14, 165, 233, 0.18)" : "none",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
               }}
             >
-              {currency === "USD" ? "$" : "€"} {label}
+              <span>
+                {currency === "USD" ? "$" : "€"} {label}
+              </span>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "relative",
+                  width: 34,
+                  height: 18,
+                  borderRadius: 999,
+                  background: active ? "rgba(255, 255, 255, 0.28)" : "rgba(148, 163, 184, 0.18)",
+                  border: active ? "1px solid rgba(255, 255, 255, 0.34)" : "1px solid rgba(148, 163, 184, 0.22)",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    left: active ? 18 : 2,
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    background: active ? "#f8fafc" : "#64748b",
+                    boxShadow: active ? "0 0 12px rgba(255, 255, 255, 0.58)" : "none",
+                    transition: "left 0.2s ease, background 0.2s ease",
+                  }}
+                />
+              </span>
             </button>
           );
         })}
@@ -1086,13 +1804,13 @@ export default function Home() {
     minHeight: "100vh",
     padding: "32px 20px",
     background:
-      "linear-gradient(135deg, rgba(12, 74, 110, 0.28) 0%, transparent 34%), radial-gradient(circle at 88% 12%, rgba(34, 197, 94, 0.13), transparent 30%), linear-gradient(180deg, #06111f 0%, #081523 52%, #04070d 100%)",
+      "linear-gradient(135deg, rgba(14, 116, 144, 0.18) 0%, transparent 34%), radial-gradient(circle at 88% 12%, rgba(250, 204, 21, 0.08), transparent 28%), linear-gradient(180deg, #07111f 0%, #0a1422 54%, #030712 100%)",
     color: "#f8fafc",
   };
 
   const contentStyle = {
     width: "100%",
-    maxWidth: 760,
+    maxWidth: 900,
     margin: "0 auto",
     position: "relative" as const,
     zIndex: 1,
@@ -1102,11 +1820,23 @@ export default function Home() {
     return <main style={pageShellStyle}>{t.loading}</main>;
   }
 
+  if (!mode && showReferenceTable) {
+    return (
+      <main style={pageShellStyle}>
+        <div style={contentStyle}>
+          {renderHeader()}
+          {renderReferenceTable()}
+        </div>
+      </main>
+    );
+  }
+
   if (!mode) {
     return (
       <main style={pageShellStyle}>
         <div style={contentStyle}>
           {renderHeader()}
+          {renderDailyScorePanel()}
 
           <section
             style={{
@@ -1114,14 +1844,35 @@ export default function Home() {
               padding: 22,
               borderRadius: 8,
               border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.88), rgba(6, 17, 31, 0.78))",
-              boxShadow: "0 28px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.06)",
+              background: "linear-gradient(180deg, rgba(13, 31, 54, 0.9), rgba(6, 17, 31, 0.84))",
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.06)",
+              backdropFilter: "blur(12px)",
             }}
           >
-            <h2 style={{ margin: 0, fontSize: 22 }}>{t.chooseMode}</h2>
-            {renderSelectionButton(t.businessTitle, t.businessDesc, () => chooseMode("business"))}
-            {renderSelectionButton(t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
-            {renderSelectionButton(t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+              <h2 style={{ margin: 0, fontSize: 22 }}>{t.chooseMode}</h2>
+              <button
+                onClick={() => setShowReferenceTable(true)}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(250, 204, 21, 0.34)",
+                  background: "linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(14, 165, 233, 0.14))",
+                  color: "#fef3c7",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "0 12px 30px rgba(250, 204, 21, 0.1)",
+                }}
+              >
+                {t.referenceButton}
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 18 }}>
+              {renderSupportModeCard(t.trainingStep, t.trainingTitle, t.trainingDesc, () => chooseMode("training"))}
+              {renderSupportModeCard(t.dailyStep, t.dailyTitle, t.dailyDesc, () => chooseMode("daily"))}
+            </div>
+            {renderBusinessModeCard()}
           </section>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22, color: "#94a3b8", fontSize: 14 }}>
@@ -1175,8 +1926,119 @@ export default function Home() {
     );
   }
 
+  if (sessionComplete && showReferenceTable) {
+    return (
+      <main style={pageShellStyle}>
+        <div style={contentStyle}>
+          {renderHeader()}
+          {renderReferenceTable()}
+        </div>
+      </main>
+    );
+  }
+
+  if (sessionComplete && didUpgradeTitle && !levelUpAcknowledged) {
+    return (
+      <main style={pageShellStyle}>
+        <div className="laurel-frame" aria-hidden="true">
+          <div className="confetti-field">
+            {Array.from({ length: 44 }).map((_, index) => (
+              <span
+                key={`level-confetti-${index}`}
+                className="confetti-piece"
+                style={{
+                  animationDelay: `${index * 0.018}s`,
+                  ["--burst-x" as string]: `${(index % 2 === 0 ? 1 : -1) * (95 + (index % 10) * 38)}px`,
+                  ["--burst-y" as string]: `${-230 - (index % 8) * 44}px`,
+                  ["--burst-r" as string]: `${(index % 13) * 31}deg`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div style={{ ...contentStyle, minHeight: "calc(100vh - 64px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <section
+            style={{
+              width: "min(680px, 100%)",
+              padding: 30,
+              borderRadius: 8,
+              border: "1px solid rgba(250, 204, 21, 0.48)",
+              background:
+                "radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.3), transparent 30%), linear-gradient(135deg, rgba(14, 116, 144, 0.94), rgba(15, 23, 42, 0.96))",
+              boxShadow: "0 40px 120px rgba(0, 0, 0, 0.48), 0 0 80px rgba(250, 204, 21, 0.18), inset 0 1px 0 rgba(255,255,255,0.12)",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ margin: 0, color: "#fde68a", fontSize: 14, fontWeight: 950, letterSpacing: 0 }}>LEVEL UP</p>
+            <h2 style={{ margin: "10px 0 0", fontFamily: "var(--font-display)", fontSize: 46, lineHeight: 1.08, fontWeight: 950 }}>{t.levelUpTitle}</h2>
+            <p style={{ margin: "12px auto 0", maxWidth: 520, color: "#dbeafe", fontSize: 16, lineHeight: 1.65, fontWeight: 750 }}>{t.levelUpSubtitle}</p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto 1fr",
+                alignItems: "center",
+                gap: 12,
+                marginTop: 26,
+              }}
+            >
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 8,
+                  border: "1px solid rgba(148, 163, 184, 0.24)",
+                  background: "rgba(2, 6, 23, 0.38)",
+                }}
+              >
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: 12, fontWeight: 900 }}>FROM</p>
+                <p style={{ margin: "8px 0 0", fontSize: 22, fontWeight: 950 }}>Lv{sessionStartLevelInfo.level}</p>
+                <p style={{ margin: "4px 0 0", color: "#cbd5e1", fontWeight: 900 }}>{sessionStartLevelTitle}</p>
+              </div>
+              <p style={{ margin: 0, color: "#fde68a", fontSize: 30, fontWeight: 950 }}>→</p>
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 8,
+                  border: "1px solid rgba(250, 204, 21, 0.54)",
+                  background: "linear-gradient(180deg, rgba(250, 204, 21, 0.2), rgba(14, 165, 233, 0.16))",
+                  boxShadow: "0 0 34px rgba(250, 204, 21, 0.18)",
+                }}
+              >
+                <p style={{ margin: 0, color: "#fde68a", fontSize: 12, fontWeight: 900 }}>TO</p>
+                <p style={{ margin: "8px 0 0", fontSize: 28, fontWeight: 950 }}>Lv{levelInfo.level}</p>
+                <p style={{ margin: "4px 0 0", color: "#fef3c7", fontWeight: 950 }}>{levelTitle}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setLevelUpAcknowledged(true)}
+              style={{
+                marginTop: 28,
+                padding: "14px 26px",
+                borderRadius: 999,
+                border: "none",
+                background: "linear-gradient(180deg, #fef3c7, #facc15)",
+                color: "#111827",
+                fontSize: 18,
+                fontWeight: 950,
+                cursor: "pointer",
+                boxShadow: "0 18px 42px rgba(250, 204, 21, 0.24)",
+              }}
+            >
+              {t.levelUpOk}
+            </button>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   if (sessionComplete) {
     const analysisComment = generateAnalysisComment(sessionAnswers, lang);
+    const correctBusinessAnswers = sessionAnswers.filter((answer) => answer.mode === "business" && answer.isCorrect);
+    const avgBusinessCorrectMs =
+      correctBusinessAnswers.length === 0 ? 0 : correctBusinessAnswers.reduce((sum, answer) => sum + answer.answerMs, 0) / correctBusinessAnswers.length;
+    const businessSpeedLabel = avgBusinessCorrectMs > 0 ? getBusinessSpeedLabel(avgBusinessCorrectMs, lang) : "";
 
     return (
       <main style={pageShellStyle}>
@@ -1232,7 +2094,48 @@ export default function Home() {
               {renderStatCard(t.wrongAnswers, `${Math.max(0, totalCount - correctCount)}`)}
               {renderStatCard(t.score, `${accuracy}%`)}
               {renderStatCard(t.bestStreak, `${bestStreak}`)}
+              {renderStatCard(t.timeLabel, formatElapsed(currentElapsedMs))}
             </div>
+
+            {mode === "business" ? (
+              <section
+                style={{
+                  position: "relative",
+                  marginTop: 22,
+                  padding: "18px 20px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(250, 204, 21, 0.32)",
+                  background:
+                    "radial-gradient(circle at 88% 18%, rgba(250, 204, 21, 0.18), transparent 26%), linear-gradient(135deg, rgba(30, 41, 59, 0.88), rgba(8, 18, 32, 0.78))",
+                  boxShadow: "0 24px 70px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 28,
+                    top: -9,
+                    width: 18,
+                    height: 18,
+                    transform: "rotate(45deg)",
+                    background: "rgba(30, 41, 59, 0.95)",
+                    borderLeft: "1px solid rgba(250, 204, 21, 0.32)",
+                    borderTop: "1px solid rgba(250, 204, 21, 0.32)",
+                  }}
+                />
+                <p style={{ margin: 0, color: "#fde68a", fontSize: 13, fontWeight: 900 }}>{t.avgCorrectAnswerTime}</p>
+                {avgBusinessCorrectMs > 0 ? (
+                  <>
+                    <p style={{ margin: "8px 0 0", fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 950, lineHeight: 1.1 }}>
+                      {formatSeconds(avgBusinessCorrectMs)}
+                    </p>
+                    <p style={{ margin: "10px 0 0", fontSize: 20, fontWeight: 950, lineHeight: 1.45 }}>{businessSpeedLabel}</p>
+                  </>
+                ) : (
+                  <p style={{ margin: "10px 0 0", color: "#cbd5e1", fontWeight: 850, lineHeight: 1.55 }}>{t.avgCorrectAnswerTimeEmpty}</p>
+                )}
+              </section>
+            ) : null}
 
             <section
               style={{
@@ -1275,6 +2178,22 @@ export default function Home() {
               </button>
 
               <button
+                onClick={() => setShowReferenceTable(true)}
+                style={{
+                  padding: "13px 18px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(250, 204, 21, 0.32)",
+                  background: "linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(14, 165, 233, 0.14))",
+                  color: "#fef3c7",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "0 14px 34px rgba(250, 204, 21, 0.12)",
+                }}
+              >
+                {t.referenceButton}
+              </button>
+
+              <button
                 onClick={() => {
                   setMode(null);
                   setBusinessLevel(null);
@@ -1307,6 +2226,100 @@ export default function Home() {
   const highlightedAmount = lang === "ja" ? question.highlightedAmountJa : question.highlightedAmountEn;
   const modeTitle = mode === "business" ? t.businessTitle : mode === "training" ? t.trainingTitle : t.dailyTitle;
   const backLabel = mode === "business" ? t.backToBusinessLevel : t.back;
+  const pointsForCurrentMode = getQuestionPoints(mode, businessLevel);
+  const startMessage = mode === "business" ? t.businessStartMessage : t.warmupStartMessage;
+
+  if (!sessionStarted) {
+    return (
+      <main style={pageShellStyle}>
+        <div style={contentStyle}>
+          {renderHeader()}
+
+          <section
+            style={{
+              marginTop: 30,
+              padding: 28,
+              borderRadius: 8,
+              border: "1px solid rgba(125, 211, 252, 0.24)",
+              background:
+                "radial-gradient(circle at 82% 12%, rgba(56, 189, 248, 0.18), transparent 28%), linear-gradient(180deg, rgba(13, 31, 54, 0.9), rgba(6, 17, 31, 0.82))",
+              boxShadow: "0 32px 100px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.07)",
+              textAlign: "center",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                padding: "7px 11px",
+                borderRadius: 8,
+                background: "rgba(14, 165, 233, 0.16)",
+                border: "1px solid rgba(125, 211, 252, 0.22)",
+                color: "#bae6fd",
+                fontWeight: 900,
+              }}
+            >
+              {modeTitle}
+              {businessLevel ? ` / ${businessLevel === "basic" ? t.basicTitle : t.advancedTitle}` : ""}
+            </span>
+            <p style={{ margin: "18px auto 0", maxWidth: 520, color: "#f8fafc", fontSize: 20, fontWeight: 900, lineHeight: 1.55 }}>
+              {startMessage}
+            </p>
+            <p style={{ margin: "16px 0 0", color: "#fde68a", fontSize: 14, fontWeight: 900 }}>
+              {t.pointsPerCorrect}: +{pointsForCurrentMode}{t.pointsUnit}
+            </p>
+
+            <button
+              onClick={(event) => startSession(event.timeStamp)}
+              style={{
+                marginTop: 22,
+                minWidth: 180,
+                padding: "16px 24px",
+                borderRadius: 8,
+                border: "1px solid rgba(255, 255, 255, 0.52)",
+                background: "linear-gradient(135deg, #f8fafc, #bfdbfe)",
+                color: "#06111f",
+                fontSize: 20,
+                fontWeight: 950,
+                cursor: "pointer",
+                boxShadow: "0 22px 50px rgba(14, 165, 233, 0.22)",
+              }}
+            >
+              {t.startButton}
+            </button>
+          </section>
+
+          <button
+            onClick={() => {
+              if (mode === "business") {
+                setBusinessLevel(null);
+                setQuestion(null);
+                setSessionAnswers([]);
+                setSessionComplete(false);
+                return;
+              }
+
+              setMode(null);
+              setSessionAnswers([]);
+              setSessionComplete(false);
+            }}
+            style={{
+              marginTop: 20,
+              padding: "13px 18px",
+              borderRadius: 8,
+              border: "1px solid rgba(148, 163, 184, 0.28)",
+              background: "rgba(15, 23, 42, 0.72)",
+              color: "#e2e8f0",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            {backLabel}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   const isCorrectResult = selected === question.correct;
   const isMilestonePopup = isCorrectResult && achievement;
 
@@ -1339,13 +2352,16 @@ export default function Home() {
             padding: 20,
             borderRadius: 8,
             border: "1px solid rgba(148, 163, 184, 0.18)",
-            background: "linear-gradient(180deg, rgba(13, 31, 54, 0.88), rgba(6, 17, 31, 0.8))",
-            boxShadow: "0 30px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.06)",
+            background: "linear-gradient(180deg, rgba(13, 31, 54, 0.92), rgba(6, 17, 31, 0.86))",
+            boxShadow: "0 24px 74px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.06)",
+            backdropFilter: "blur(12px)",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, color: "#94a3b8", fontSize: 13, fontWeight: 800 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, color: "#94a3b8", fontSize: 13, fontWeight: 800, flexWrap: "wrap" }}>
             <span>{t.progressLabel}</span>
-            <span>{Math.min(totalCount, 10)}/10</span>
+            <span>
+              {t.timeLabel}: {formatElapsed(currentElapsedMs)} / {Math.min(totalCount, 10)}/10
+            </span>
           </div>
           <div style={{ height: 8, marginTop: 10, borderRadius: 8, background: "rgba(148, 163, 184, 0.18)", overflow: "hidden" }}>
             <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, #22c55e, #38bdf8)" }} />
@@ -1379,7 +2395,7 @@ export default function Home() {
             }}
           >
             {question.options.map((opt) => {
-              let bg = "linear-gradient(135deg, #2563eb, #0891b2)";
+              let bg = "linear-gradient(135deg, #1d4ed8, #0f766e)";
               let border = "1px solid rgba(125, 211, 252, 0.24)";
 
               if (selected !== null) {
@@ -1395,7 +2411,7 @@ export default function Home() {
               return (
                 <button
                   key={`${opt.value}-${opt.labelJa}`}
-                  onClick={(event) => selectAnswer(opt.value, event.currentTarget)}
+                  onClick={(event) => selectAnswer(opt.value, event.currentTarget, event.timeStamp)}
                   style={{
                     minHeight: 86,
                     padding: "18px 12px",
@@ -1429,12 +2445,22 @@ export default function Home() {
                   setPopupPosition("origin");
                   setSessionAnswers([]);
                   setSessionComplete(false);
+                  setSessionStarted(false);
+                  setSessionStartMs(null);
+                  setQuestionStartMs(null);
+                  setElapsedMs(0);
+                  setCompletedElapsedMs(0);
                   return;
                 }
 
                 setMode(null);
                 setSessionAnswers([]);
                 setSessionComplete(false);
+                setSessionStarted(false);
+                setSessionStartMs(null);
+                setQuestionStartMs(null);
+                setElapsedMs(0);
+                setCompletedElapsedMs(0);
               }}
               style={{
                 padding: "13px 18px",
@@ -1447,7 +2473,24 @@ export default function Home() {
               }}
             >
               {backLabel}
+            </button>
+            {totalCount > 0 && totalCount < 10 ? (
+              <button
+                onClick={(event) => showResultsNow(event.timeStamp)}
+                style={{
+                  padding: "13px 18px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(125, 211, 252, 0.32)",
+                  background: "linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(34, 197, 94, 0.14))",
+                  color: "#e0f2fe",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "0 14px 34px rgba(14, 165, 233, 0.12)",
+                }}
+              >
+                {t.showResults}
               </button>
+            ) : null}
           </div>
         </section>
 
@@ -1506,9 +2549,18 @@ export default function Home() {
                 gap: 18,
               }}
             >
-              <p style={{ margin: 0, color: "white", fontFamily: "var(--font-display)", fontSize: isMilestonePopup ? 28 : 30, fontWeight: 900, lineHeight: 1.25, whiteSpace: "pre-line" }}>
-                {result}
-              </p>
+              {isCorrectResult ? (
+                <p style={{ margin: 0, color: "white", fontFamily: "var(--font-display)", fontSize: isMilestonePopup ? 28 : 30, fontWeight: 900, lineHeight: 1.25, whiteSpace: "pre-line" }}>
+                  {result}
+                </p>
+              ) : (
+                <div style={{ color: "white", fontFamily: "var(--font-display)", lineHeight: 1.18 }}>
+                  <p style={{ margin: 0, fontSize: 26, fontWeight: 900 }}>{t.wrong}</p>
+                  <p style={{ margin: "8px 0 0", fontSize: 34, fontWeight: 950, letterSpacing: 0, textShadow: "0 4px 18px rgba(0, 0, 0, 0.26)" }}>
+                    {formatCorrectAnswer(question, lang)}
+                  </p>
+                </div>
+              )}
               <button
                 onClick={advanceFromPopup}
                 disabled={resultPopupExiting}
