@@ -328,23 +328,31 @@ function roundNice(num: number) {
   return Math.round(num);
 }
 
-function formatCompact(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+function formatScaleNumber(value: number, significantDigits = 2) {
+  if (value === 0) return "0";
+
+  const absolute = Math.abs(value);
+  const magnitude = Math.floor(Math.log10(absolute));
+  const factor = 10 ** (significantDigits - magnitude - 1);
+  const rounded = Math.round(value * factor) / factor;
+  const decimals = Math.max(0, significantDigits - Math.floor(Math.log10(Math.abs(rounded))) - 1);
+
+  return rounded.toFixed(decimals).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
 }
 
 function formatJapaneseYen(value: number) {
-  if (value >= 1_0000_0000_0000) return `${formatCompact(Math.round(value / 1_0000_0000_000) / 10)}兆円`;
-  if (value >= 1_0000_0000) return `${formatCompact(Math.round(value / 1_0000_000) / 10)}億円`;
+  if (value >= 1_0000_0000_0000) return `${formatScaleNumber(value / 1_0000_0000_0000)}兆円`;
+  if (value >= 1_0000_0000) return `${formatScaleNumber(value / 1_0000_0000)}億円`;
   if (value < 100_000) return `${Math.round(value).toLocaleString()}円`;
-  if (value >= 1_0000) return `${Math.round(value / 1_0000)}万円`;
+  if (value >= 1_0000) return `${formatScaleNumber(value / 1_0000)}万円`;
   return `${Math.round(value).toLocaleString()}円`;
 }
 
 function formatForeign(value: number, currency: "USD" | "EUR") {
   const symbol = currency === "USD" ? "$" : "€";
-  if (value >= 1_000_000_000) return `${symbol}${Math.round(value / 1_000_000_000)}B`;
-  if (value >= 1_000_000) return `${symbol}${Math.round(value / 1_000_000)}M`;
-  if (value >= 1_000) return `${symbol}${Math.round(value / 1_000)}K`;
+  if (value >= 1_000_000_000) return `${symbol}${formatScaleNumber(value / 1_000_000_000)}B`;
+  if (value >= 1_000_000) return `${symbol}${formatScaleNumber(value / 1_000_000)}M`;
+  if (value >= 1_000) return `${symbol}${formatScaleNumber(value / 1_000)}K`;
   return `${symbol}${Math.round(value)}`;
 }
 
@@ -357,15 +365,15 @@ function formatForeignWords(value: number, currency: "USD" | "EUR") {
   const unit = currency === "USD" ? "dollars" : "euros";
 
   if (value >= 1_000_000_000_000) {
-    return `${formatCompact(Math.round(value / 100_000_000_000) / 10)} trillion ${unit}`;
+    return `${formatScaleNumber(value / 1_000_000_000_000)} trillion ${unit}`;
   }
 
   if (value >= 1_000_000_000) {
-    return `${formatCompact(Math.round(value / 100_000_000) / 10)} billion ${unit}`;
+    return `${formatScaleNumber(value / 1_000_000_000)} billion ${unit}`;
   }
 
   if (value >= 1_000_000) {
-    return `${formatCompact(Math.round(value / 100_000) / 10)} million ${unit}`;
+    return `${formatScaleNumber(value / 1_000_000)} million ${unit}`;
   }
 
   return `${Math.round(value).toLocaleString()} ${unit}`;
@@ -844,9 +852,9 @@ function formatAxisForeignAmount(value: number, currency: "USD" | "EUR") {
   const symbol = currency === "USD" ? "$" : "€";
 
   if (value >= 1_000_000_000_000) return `${symbol}1 trillion`;
-  if (value >= 1_000_000_000) return `${symbol}${formatCompact(value / 1_000_000_000)} billion`;
-  if (value >= 1_000_000) return `${symbol}${formatCompact(value / 1_000_000)} million`;
-  if (value >= 1_000) return `${symbol}${formatCompact(value / 1_000)} thousand`;
+  if (value >= 1_000_000_000) return `${symbol}${formatScaleNumber(value / 1_000_000_000)} billion`;
+  if (value >= 1_000_000) return `${symbol}${formatScaleNumber(value / 1_000_000)} million`;
+  if (value >= 1_000) return `${symbol}${formatScaleNumber(value / 1_000)} thousand`;
   return `${symbol}${value}`;
 }
 
@@ -1383,26 +1391,39 @@ export default function Home() {
   function renderExchangeTicker() {
     if (!rates) return null;
 
-    const items = [
-      { from: "1M USD =", to: formatJapaneseYen(1_000_000 * rates.USD) },
-      { from: "1B USD =", to: formatJapaneseYen(1_000_000_000 * rates.USD) },
+    const yenToUsdItems = [
       { from: "1億円 =", to: formatForeign(100_000_000 / rates.USD, "USD") },
       { from: "1兆円 =", to: formatForeign(1_000_000_000_000 / rates.USD, "USD") },
     ];
-    const loopItems = [...items, ...items, ...items];
 
-    return (
-      <div className="exchange-ticker" aria-label="Key exchange conversions">
-        <div className="exchange-ticker-cylinder">
-          <div className="exchange-ticker-track">
-            {loopItems.map((item, index) => (
-              <div className="exchange-ticker-item" key={`${item.from}-${item.to}-${index}`}>
-                <div className="exchange-ticker-from">{item.from}</div>
-                <div className="exchange-ticker-to">{item.to}</div>
-              </div>
-            ))}
+    const usdToYenItems = [
+      { from: "1M USD =", to: formatJapaneseYen(1_000_000 * rates.USD) },
+      { from: "1B USD =", to: formatJapaneseYen(1_000_000_000 * rates.USD) },
+    ];
+
+    function renderTickerCylinder(items: typeof yenToUsdItems, label: string, tone: "yen-to-usd" | "usd-to-yen") {
+      const loopItems = [...items, ...items, ...items, ...items, ...items];
+
+      return (
+        <div className={`exchange-ticker exchange-ticker-${tone}`} aria-label={label}>
+          <div className="exchange-ticker-cylinder">
+            <div className="exchange-ticker-track">
+              {loopItems.map((item, index) => (
+                <div className="exchange-ticker-item" key={`${tone}-${item.from}-${item.to}-${index}`}>
+                  <div className="exchange-ticker-from">{item.from}</div>
+                  <div className="exchange-ticker-to">{item.to}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      );
+    }
+
+    return (
+      <div className="exchange-ticker-pair">
+        {renderTickerCylinder(yenToUsdItems, "JPY to USD key conversions", "yen-to-usd")}
+        {renderTickerCylinder(usdToYenItems, "USD to JPY key conversions", "usd-to-yen")}
       </div>
     );
   }

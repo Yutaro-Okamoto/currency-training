@@ -54,11 +54,20 @@ button {
   font-family: inherit;
 }
 
+.exchange-ticker-pair {
+  display: grid;
+  flex: 1 1 620px;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 12px;
+  min-width: 0;
+  max-width: 680px;
+}
+
 .exchange-ticker {
   position: relative;
-  flex: 1 1 500px;
-  min-width: 360px;
-  max-width: 620px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   height: 58px;
   overflow: hidden;
   border-radius: 999px;
@@ -75,6 +84,23 @@ button {
     0 16px 34px rgba(6, 182, 212, 0.1);
   perspective: 460px;
   contain: paint;
+}
+
+.exchange-ticker-yen-to-usd {
+  border-color: rgba(250, 204, 21, 0.32);
+  background:
+    radial-gradient(ellipse at 50% -20%, rgba(255, 255, 255, 0.18), transparent 54%),
+    radial-gradient(ellipse at 50% 120%, rgba(2, 6, 23, 0.95), transparent 58%),
+    linear-gradient(90deg, #020617 0%, #2b250d 18%, #164e63 48%, #2b250d 78%, #020617 100%);
+}
+
+.exchange-ticker-yen-to-usd .exchange-ticker-to {
+  color: #fde68a;
+}
+
+.exchange-ticker-yen-to-usd .exchange-ticker-item::before {
+  background: #facc15;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.9);
 }
 
 .exchange-ticker::before,
@@ -115,10 +141,10 @@ button {
   width: max-content;
   min-width: max-content;
   align-items: center;
-  gap: 46px;
+  gap: 34px;
   white-space: nowrap;
   transform: translate3d(0, -50%, 0);
-  animation: exchange-ticker-scroll 18s linear infinite;
+  animation: exchange-ticker-scroll 16s linear infinite;
   will-change: transform;
 }
 
@@ -126,7 +152,7 @@ button {
   flex: 0 0 auto;
   position: relative;
   display: grid !important;
-  min-width: 138px;
+  min-width: 126px;
   height: 44px;
   grid-template-rows: 13px 1fr;
   align-content: center;
@@ -179,7 +205,7 @@ button {
   }
 
   to {
-    transform: translate3d(-33.333%, -50%, 0);
+    transform: translate3d(-20%, -50%, 0);
   }
 }
 
@@ -386,10 +412,14 @@ strong {
 
   .exchange-ticker {
     flex-basis: auto;
-    width: min(100%, 320px);
-    min-width: 0;
-    max-width: 320px;
     height: 42px;
+  }
+
+  .exchange-ticker-pair {
+    width: min(100%, 320px);
+    max-width: 320px;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .exchange-ticker-track {
@@ -398,7 +428,7 @@ strong {
   }
 
   .exchange-ticker-item {
-    min-width: 112px;
+    min-width: 108px;
     height: 34px;
     grid-template-rows: 10px 1fr;
     padding-left: 16px;
