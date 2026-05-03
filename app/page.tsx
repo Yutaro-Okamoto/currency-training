@@ -1384,10 +1384,10 @@ export default function Home() {
     if (!rates) return null;
 
     const items = [
-      `1M USD = ${formatJapaneseYen(1_000_000 * rates.USD)}`,
-      `1B USD = ${formatJapaneseYen(1_000_000_000 * rates.USD)}`,
-      `1億円 = ${formatForeign(100_000_000 / rates.USD, "USD")}`,
-      `1兆円 = ${formatForeign(1_000_000_000_000 / rates.USD, "USD")}`,
+      { from: "1M USD =", to: formatJapaneseYen(1_000_000 * rates.USD) },
+      { from: "1B USD =", to: formatJapaneseYen(1_000_000_000 * rates.USD) },
+      { from: "1億円 =", to: formatForeign(100_000_000 / rates.USD, "USD") },
+      { from: "1兆円 =", to: formatForeign(1_000_000_000_000 / rates.USD, "USD") },
     ];
     const loopItems = [...items, ...items, ...items];
 
@@ -1396,9 +1396,10 @@ export default function Home() {
         <div className="exchange-ticker-cylinder">
           <div className="exchange-ticker-track">
             {loopItems.map((item, index) => (
-              <span className="exchange-ticker-item" key={`${item}-${index}`}>
-                {item}
-              </span>
+              <div className="exchange-ticker-item" key={`${item.from}-${item.to}-${index}`}>
+                <div className="exchange-ticker-from">{item.from}</div>
+                <div className="exchange-ticker-to">{item.to}</div>
+              </div>
             ))}
           </div>
         </div>

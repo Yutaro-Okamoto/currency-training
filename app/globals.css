@@ -56,10 +56,10 @@ button {
 
 .exchange-ticker {
   position: relative;
-  flex: 1 1 420px;
-  min-width: 300px;
-  max-width: 520px;
-  height: 42px;
+  flex: 1 1 500px;
+  min-width: 360px;
+  max-width: 620px;
+  height: 58px;
   overflow: hidden;
   border-radius: 999px;
   border: 1px solid rgba(125, 211, 252, 0.28);
@@ -84,7 +84,7 @@ button {
   top: 0;
   bottom: 0;
   z-index: 2;
-  width: 68px;
+  width: 82px;
   pointer-events: none;
 }
 
@@ -100,7 +100,7 @@ button {
 
 .exchange-ticker-cylinder {
   position: absolute;
-  inset: 4px 0;
+  inset: 6px 0;
   overflow: hidden;
   border-radius: 999px;
   transform: rotateX(13deg);
@@ -115,7 +115,7 @@ button {
   width: max-content;
   min-width: max-content;
   align-items: center;
-  gap: 34px;
+  gap: 46px;
   white-space: nowrap;
   transform: translate3d(0, -50%, 0);
   animation: exchange-ticker-scroll 18s linear infinite;
@@ -124,13 +124,20 @@ button {
 
 .exchange-ticker-item {
   flex: 0 0 auto;
+  position: relative;
+  display: grid !important;
+  min-width: 138px;
+  height: 44px;
+  grid-template-rows: 13px 1fr;
+  align-content: center;
+  align-items: center;
+  gap: 2px;
+  padding-left: 19px;
   white-space: nowrap;
   color: #86efac;
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 900;
   letter-spacing: 0;
-  transform: translateZ(28px);
+  transform: translateZ(34px);
   text-shadow:
     0 0 10px rgba(34, 197, 94, 0.55),
     0 1px 0 rgba(0, 0, 0, 0.9);
@@ -138,14 +145,32 @@ button {
 
 .exchange-ticker-item::before {
   content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 9px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #22c55e;
   box-shadow: 0 0 14px rgba(34, 197, 94, 0.9);
-  vertical-align: 1px;
+  transform: translateY(-50%);
+}
+
+.exchange-ticker-from {
+  display: block !important;
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 13px;
+  opacity: 0.82;
+}
+
+.exchange-ticker-to {
+  display: block !important;
+  color: #bbf7d0;
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 26px;
 }
 
 @keyframes exchange-ticker-scroll {
@@ -361,19 +386,32 @@ strong {
 
   .exchange-ticker {
     flex-basis: auto;
-    width: min(100%, 300px);
+    width: min(100%, 320px);
     min-width: 0;
-    max-width: 300px;
-    height: 34px;
+    max-width: 320px;
+    height: 42px;
   }
 
   .exchange-ticker-track {
-    gap: 24px;
+    gap: 32px;
     animation-duration: 15s;
   }
 
   .exchange-ticker-item {
-    font-size: 11px;
+    min-width: 112px;
+    height: 34px;
+    grid-template-rows: 10px 1fr;
+    padding-left: 16px;
+  }
+
+  .exchange-ticker-from {
+    font-size: 9px;
+    line-height: 10px;
+  }
+
+  .exchange-ticker-to {
+    font-size: 16px;
+    line-height: 19px;
   }
 
   .daily-score-grid {
